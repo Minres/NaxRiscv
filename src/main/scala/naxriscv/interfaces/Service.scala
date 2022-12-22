@@ -200,6 +200,7 @@ case class RescheduleEvent(causeWidth : Int, onCommit : Boolean) extends Bundle{
   val cause      = UInt(causeWidth bits)
   val tval       = Bits(TVAL_WIDTH bits)
   val reason     = ScheduleReason.hardType()
+  val skipCommit = Bool()
 }
 
 
@@ -400,12 +401,13 @@ trait AddressTranslationService extends Service with LockedImpl {
   def newStorage(pAny: Any) : Any
   def newTranslationPort(stages: Seq[Stage],
                          preAddress: Stageable[UInt],
+                         allowRefill : Stageable[Bool],
                          usage: AddressTranslationPortUsage,
                          portSpec: Any,
                          storageSpec: Any): AddressTranslationRsp
 
   def withTranslation : Boolean
-  def invalidatePort : PulseHandshake[NoData, NoData]
+  def invalidatePort : FlowCmdRsp[NoData, NoData]
 }
 
 class CsrSpec(val csrFilter : Any){
@@ -577,40 +579,10 @@ trait PerformanceCounterService extends Service with LockedImpl{
   def createEventPort(id : Int) : Bool
 }
 
-object PulseHandshake{
-  def apply() : PulseHandshake[NoData, NoData] = PulseHandshake(NoData(), NoData())
-  def apply[T <: Data, T2 <: Data](cmdType : HardType[T], rspType : HardType[T2]) : PulseHandshake[T, T2] = new PulseHandshake(cmdType, rspType)
-}
-
-class PulseHandshake[T <: Data, T2 <: Data](cmdType : HardType[T], rspType : HardType[T2]) extends Bundle with IMasterSlave {
-  val request = Bool()
-  val served  = Bool()
-  val cmd = cmdType()
-  val rsp = rspType()
-
-
-  override def asMaster() = {
-    out(request, cmd)
-    in(served, rsp)
-  }
-
-  def setIdleAll(): this.type ={
-    request := False
-    served := False
-    cmd.assignDontCare()
-    rsp.assignDontCare()
-    this
-  }
-
-  def setIdle(): this.type ={
-    request := False
-    cmd.assignDontCare()
-    this
-  }
-
-  def isPending() : Bool = RegInit(False) setWhen(request) clearWhen(served)
-}
-
 trait PostCommitBusy extends Service{
   def postCommitBusy : Bool
+}
+
+trait FetchInjector extends Service{
+  def injectPort() : Flow[Bits]
 }

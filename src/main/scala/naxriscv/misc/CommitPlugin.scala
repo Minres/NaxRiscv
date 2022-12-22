@@ -51,6 +51,7 @@ class CommitPlugin(var commitCount : Int,
     val rob = getService[RobService]
     val robLineMask = rob.newRobLineValids(bypass = ptrCommitRetimed)
     val isRobEmpty = Bool()
+    getService[DecoderService].addDecodingToRob(ROB.MSB)
     rob.retain()
   }
 
@@ -86,6 +87,7 @@ class CommitPlugin(var commitCount : Int,
       val frontend = getService[FrontendPlugin]
       val stage = frontend.pipeline.allocated
       stage(ROB.ID) := alloc.resized
+      for(i <- 0 until DISPATCH_COUNT) stage(ROB.MSB, i) := U(alloc.msb)
       stage.haltIt(full)
 
       allocNext := alloc + (stage.isFireing ? U(ROB.COLS) | U(0))
@@ -147,6 +149,7 @@ class CommitPlugin(var commitCount : Int,
       reschedulePort.cause     := cause
       reschedulePort.tval      := tval
       reschedulePort.reason    := reason
+      reschedulePort.skipCommit := skipCommit
     }
 
     val commit = new Area {
@@ -174,6 +177,7 @@ class CommitPlugin(var commitCount : Int,
       reschedulePort.cause     := reschedule.cause
       reschedulePort.tval      := reschedule.tval
       reschedulePort.reason    := reschedule.reason
+      reschedulePort.skipCommit := reschedule.skipCommit
 
 
       val head = UInt(ROB.ID_WIDTH bits)
@@ -250,8 +254,13 @@ class CommitPlugin(var commitCount : Int,
       val reschedule = patch(cmt.reschedulePort)
       val rescheduleReason = patch(rsd.reason)
 
+      if(GenerationFlags.simulation){
+        rob.readAsync(PC, DISPATCH_COUNT, cmt.event.robId).setCompositeName(commit, "pc")
+      }
+
       Verilator.public(ptr.stage.isFireing)
       Verilator.public(ptr.stage(ROB.ID))
+//      val commitLine = patch(cmt.lineEvent)
     }
 
     getService[DocPlugin].property("COMMIT_COUNT", COMMIT_COUNT.get)

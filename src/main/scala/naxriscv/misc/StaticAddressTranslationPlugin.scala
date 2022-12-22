@@ -2,7 +2,7 @@ package naxriscv.misc
 
 import naxriscv.Global._
 import naxriscv._
-import naxriscv.interfaces.{AddressTranslationPortUsage, AddressTranslationRsp, AddressTranslationService, PulseHandshake}
+import naxriscv.interfaces.{AddressTranslationPortUsage, AddressTranslationRsp, AddressTranslationService}
 import naxriscv.utilities.Plugin
 import spinal.core._
 import spinal.lib._
@@ -33,6 +33,7 @@ class StaticAddressTranslationPlugin( var physicalWidth : Int,
 
   override def newTranslationPort(stages: Seq[Stage],
                          preAddress: Stageable[UInt],
+                         allowRefill : Stageable[Bool],
                          usage: AddressTranslationPortUsage,
                          portSpec: Any,
                          storageSpec: Any): AddressTranslationRsp = {
@@ -57,8 +58,8 @@ class StaticAddressTranslationPlugin( var physicalWidth : Int,
   }
 
   val setup = create early new Area{
-    val invalidatePort = PulseHandshake().setIdleAll()
-    invalidatePort.served setWhen(RegNext(invalidatePort.request) init(False))
+    val invalidatePort = FlowCmdRsp().setIdleAll()
+    invalidatePort.rsp.valid setWhen(RegNext(invalidatePort.cmd.valid) init(False))
   }
 
   val logic = create late new Area{

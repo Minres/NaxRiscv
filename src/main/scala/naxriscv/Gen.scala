@@ -2,21 +2,24 @@ package naxriscv
 
 import spinal.core._
 import naxriscv.compatibility._
-import naxriscv.debug.{DebugTransportModuleParameter, EmbeddedJtagPlugin}
+import naxriscv.debug.EmbeddedJtagPlugin
 import naxriscv.frontend._
 import naxriscv.fetch._
 import naxriscv.misc._
 import naxriscv.execute._
 import naxriscv.execute.fpu._
 import naxriscv.fetch._
+import naxriscv.interfaces.CommitService
 import naxriscv.lsu._
+import naxriscv.lsu2.Lsu2Plugin
 import naxriscv.prediction._
 import naxriscv.riscv.IntRegFile
 import naxriscv.utilities._
-import spinal.lib.LatencyAnalysis
+import spinal.lib.{LatencyAnalysis, Timeout}
 import spinal.lib.bus.amba4.axi.Axi4SpecRenamer
 import spinal.lib.bus.amba4.axilite.AxiLite4SpecRenamer
 import spinal.lib.bus.misc.SizeMapping
+import spinal.lib.cpu.riscv.debug.DebugTransportModuleParameter
 import spinal.lib.eda.bench.Rtl
 import spinal.lib.misc.WishboneClint
 import spinal.lib.misc.plic.WishbonePlic
@@ -44,6 +47,7 @@ object Config{
               withDistributedRam : Boolean = true,
               xlen : Int = 32,
               withLoadStore : Boolean = true,
+              withDedicatedLoadAgu : Boolean = false,
               withDebug : Boolean = false,
               withEmbeddedJtagTap : Boolean = false,
               withEmbeddedJtagInstruction : Boolean = false,
@@ -52,7 +56,13 @@ object Config{
               branchCount : Int = 16,
               withFloat  : Boolean = false,
               withDouble : Boolean = false,
-              simulation : Boolean = GenerationFlags.simulation): ArrayBuffer[Plugin] ={
+              withLsu2 : Boolean = true,
+              lqSize : Int = 16,
+              sqSize : Int = 16,
+              simulation : Boolean = GenerationFlags.simulation,
+              sideChannels : Boolean = false,
+              dispatchSlots : Int = 32,
+              robSize : Int = 64): ArrayBuffer[Plugin] ={
     val plugins = ArrayBuffer[Plugin]()
 
     val fpu = withFloat || withDouble
@@ -134,7 +144,7 @@ object Config{
     plugins += new RfDependencyPlugin()
     plugins += new RfAllocationPlugin(riscv.IntRegFile)
     plugins += new DispatchPlugin(
-      slotCount = 32,
+      slotCount = dispatchSlots,
       robIdAt = withDistributedRam.toInt //Not having it enabled allows ram block inferation on execution unit context reads
     )
 
@@ -165,67 +175,115 @@ object Config{
 
     //LOAD / STORE
     if(withLoadStore){
-      plugins += new LsuPlugin(
-        lqSize = 16,
-        sqSize = 16,
-        loadToCacheBypass = true,
-        lqToCachePipelined = true,
-        hitPedictionEntries = 1024,
-        translationStorageParameter = MmuStorageParameter(
-          levels   = List(
-            MmuStorageLevel(
-              id    = 0,
-              ways  = 4,
-              depth = 32
+      withLsu2 match {
+        case false => plugins += new LsuPlugin(
+          lqSize = lqSize,
+          sqSize = sqSize,
+          loadToCacheBypass = true,
+          lqToCachePipelined = true,
+          hitPedictionEntries = 1024,
+          loadWriteRfOnPrivilegeFail = sideChannels,
+          translationStorageParameter = MmuStorageParameter(
+            levels = List(
+              MmuStorageLevel(
+                id = 0,
+                ways = 4,
+                depth = 32
+              ),
+              MmuStorageLevel(
+                id = 1,
+                ways = 2,
+                depth = 32
+              )
             ),
-            MmuStorageLevel(
-              id    = 1,
-              ways  = 2,
-              depth = 32
-            )
+            priority = 1
           ),
-          priority = 1
-        ),
 
-        loadTranslationParameter = withMmu match {
-          case false => StaticAddressTranslationParameter(rspAt = 1)
-          case true => MmuPortParameter(
-            readAt = 0,
-            hitsAt = 0,
-            ctrlAt = 1,
-            rspAt  = 1
-          )
-        },
-        storeTranslationParameter = withMmu match {
-          case false => StaticAddressTranslationParameter(rspAt = 1)
-          case true => MmuPortParameter(
-            readAt = 1,
-            hitsAt = 1,
-            ctrlAt = 1,
-            rspAt  = 1
-          )
-        }
-      )
-      plugins += new DataCachePlugin(
-        memDataWidth = 64,
-        cacheSize    = 4096*4,
-        wayCount     = 4,
-        refillCount = 2,
-        writebackCount = 2,
-        tagsReadAsync = withDistributedRam,
-        loadReadTagsAt = if(withDistributedRam) 1 else 0,
-        storeReadTagsAt = if(withDistributedRam) 1 else 0,
-        reducedBankWidth = false,
-        //      loadHitAt      = 2
-        //      loadRspAt      = 3,
-        loadRefillCheckEarly = false
-      )
+          loadTranslationParameter = withMmu match {
+            case false => StaticAddressTranslationParameter(rspAt = 1)
+            case true => MmuPortParameter(
+              readAt = 0,
+              hitsAt = 0,
+              ctrlAt = 1,
+              rspAt = 1
+            )
+          },
+          storeTranslationParameter = withMmu match {
+            case false => StaticAddressTranslationParameter(rspAt = 1)
+            case true => MmuPortParameter(
+              readAt = 1,
+              hitsAt = 1,
+              ctrlAt = 1,
+              rspAt = 1
+            )
+          }
+        )
+        case true => plugins += new Lsu2Plugin(
+          lqSize = lqSize,
+          sqSize = sqSize,
+//          loadToCacheBypass = true,
+          lqToCachePipelined = true,
+//          hitPedictionEntries = 1024,
+          loadWriteRfOnPrivilegeFail = sideChannels,
+          translationStorageParameter = MmuStorageParameter(
+            levels = List(
+              MmuStorageLevel(
+                id = 0,
+                ways = 4,
+                depth = 32
+              ),
+              MmuStorageLevel(
+                id = 1,
+                ways = 2,
+                depth = 32
+              )
+            ),
+            priority = 1
+          ),
+
+          sharedTranslationParameter = withMmu match {
+            case false => StaticAddressTranslationParameter(rspAt = 1)
+            case true => MmuPortParameter(
+              readAt = 0,
+              hitsAt = 0,
+              ctrlAt = 1,
+              rspAt  = 1
+            )
+          }
+        )
+      }
     }
+
+    if(!withLoadStore){
+      plugins += new Plugin{
+        val setup = create early new Area{
+          val cache = getService[DataCachePlugin]
+          val store = cache.newStorePort()
+          spinal.lib.slave(store)
+          spinal.lib.slave(cache.setup.lockPort)
+        }
+      }
+    }
+
+    plugins += new DataCachePlugin(
+      memDataWidth = 64,
+      cacheSize    = 4096*4,
+      wayCount     = 4,
+      refillCount = 2,
+      writebackCount = 2,
+      tagsReadAsync = withDistributedRam,
+      loadReadTagsAt = if(withDistributedRam) 1 else 0,
+      storeReadTagsAt = if(withDistributedRam) 1 else 0,
+      reducedBankWidth = false,
+      //      loadHitAt      = 2
+      //      loadRspAt      = 3,
+      loadRefillCheckEarly = false
+    )
 
     //MISC
     plugins += new RobPlugin(
-      robSize = 64,
-      completionWithReg = false
+      robSize = robSize,
+      completionWithReg = !withDistributedRam
     )
     plugins += new CommitPlugin(
       commitCount = decodeCount,
@@ -243,8 +301,7 @@ object Config{
       withRdTime = withRdTime,
       withSupervisor = withSupervisor,
       withDebug = withDebug,
-      debugTriggers = debugTriggers,
-      debugVector = SizeMapping(0x100, 0x10*4)
+      debugTriggers = debugTriggers
     ))
     if(withPerfCounters) plugins += new PerformanceCounterPlugin(
       additionalCounterCount = 4,
@@ -258,8 +315,7 @@ object Config{
     plugins += new IntAluPlugin("ALU0", aluStage = 0)
     plugins += new ShiftPlugin("ALU0" , aluStage = 0)
     if(aluCount > 1) plugins += new BranchPlugin("ALU0")
-    //    plugins += new LoadPlugin("ALU0")
-    //    plugins += new StorePlugin("ALU0")
+
 
     plugins += new ExecutionUnitBase("EU0", writebackCountMax = 1, readPhysRsFromQueue = true)
     plugins += new IntFormatPlugin("EU0")
@@ -270,8 +326,20 @@ object Config{
     //    plugins += new ShiftPlugin("EU0")
     if(aluCount == 1) plugins += new BranchPlugin("EU0", writebackAt = 2, staticLatency = false)
     if(withLoadStore) {
-      plugins += new LoadPlugin("EU0")
-      plugins += new StorePlugin("EU0")
+      withLsu2 match {
+        case false => {
+          withDedicatedLoadAgu match{
+            case false => plugins += new LoadPlugin("EU0")
+            case true => {
+              plugins += new ExecutionUnitBase("LOAD", writebackCountMax = 0, readPhysRsFromQueue = true)
+              plugins += new SrcPlugin("LOAD")
+              plugins += new LoadPlugin("LOAD")
+            }
+          }
+          plugins += new StorePlugin("EU0")
+        }
+        case true => plugins += new AguPlugin("EU0")
+      }
     }
     plugins += new EnvCallPlugin("EU0")(rescheduleAt = 2)
     plugins += new CsrAccessPlugin("EU0")(
@@ -370,6 +438,7 @@ object Gen extends App{
       aluCount    = 2,
       decodeCount = 2,
       debugTriggers = 4,
+      withDedicatedLoadAgu = false,
       withRvc = false,
       withLoadStore = true,
       withMmu = true,
@@ -377,7 +446,11 @@ object Gen extends App{
       withEmbeddedJtagTap = false,
       jtagTunneled = false,
       withFloat = false,
-      withDouble = false
+      withDouble = false,
+      withLsu2 = true,
+      lqSize = 16,
+      sqSize = 16,
+      ioRange = a => a(31 downto 28) === 0x1// || !a(12)//(a(5, 6 bits) ^ a(12, 6 bits)) === 51
     )
     l.foreach{
       case p : EmbeddedJtagPlugin => p.debugCd.load(ClockDomain.current.copy(reset = Bool().setName("debug_reset")))
@@ -389,6 +462,7 @@ object Gen extends App{
   {
     val spinalConfig = SpinalConfig(inlineRom = true)
     spinalConfig.addTransformationPhase(new MemReadDuringWriteHazardPhase)
+    spinalConfig.addTransformationPhase(new MemReadDuringWritePatcherPhase)
     spinalConfig.addTransformationPhase(new MultiPortWritesSymplifier)
     //  spinalConfig.addTransformationPhase(new MultiPortReadSymplifier)
 
@@ -427,6 +501,7 @@ object Gen64 extends App{
   LutInputs.set(6)
   def plugins = {
     val l = Config.plugins(
+      sideChannels = false, //WARNING, FOR TEST PURPOSES ONLY, turn to false for real stuff <3
       xlen = 64,
       withRdTime = false,
       aluCount    = 2,
@@ -436,7 +511,9 @@ object Gen64 extends App{
       withEmbeddedJtagTap = false,
       debugTriggers = 4,
       withFloat = false,
-      withDouble = false
+      withDouble = false,
+      lqSize = 16,
+      sqSize = 16
     )
     l.foreach{
       case p : EmbeddedJtagPlugin => p.debugCd.load(ClockDomain.current.copy(reset = Bool().setName("debug_reset")))
@@ -450,6 +527,7 @@ object Gen64 extends App{
   {
     val spinalConfig = SpinalConfig(inlineRom = true, anonymSignalPrefix = "_zz")
     spinalConfig.addTransformationPhase(new MemReadDuringWriteHazardPhase)
+    spinalConfig.addTransformationPhase(new MemReadDuringWritePatcherPhase)
     spinalConfig.addTransformationPhase(new MultiPortWritesSymplifier)
     //  spinalConfig.addTransformationPhase(new MultiPortReadSymplifier)
 
@@ -565,7 +643,7 @@ obj_dir/VNaxRiscv --name play --load-elf ../../../../ext/NaxSoftware/baremetal/p
 obj_dir/VNaxRiscv --load-elf ../../../../ext/NaxSoftware/baremetal/freertosDemo/integer/rv32im/freertosDemo.elf --start-symbol _start --pass-symbol c_pass --fail-symbol c_fail --stats-print-all
 
 
-obj_dir/VNaxRiscv --name play --load-elf ../../../../ext/NaxSoftware/baremetal/play/build/rv64im/play.elf --start-symbol _start --pass-symbol pass --fail-symbol fail --trace --trace-ref --stats-print-all
+obj_dir/VNaxRiscv --name play --load-elf ../../../../ext/NaxSoftware/baremetal/play/build/rv64ima/play.elf --start-symbol _start --pass-symbol pass --fail-symbol fail --trace --trace-ref --stats-print-all
 
 LAST PC COMMIT=c002be98
 
@@ -710,4 +788,39 @@ Geometric range      0.51
 
 1.63065 + 1.24106 + 1.67444 + 1.28898 + 1.31207 + 1.89032 + 1.27391 + 1.11954 + 1.8445 + 1.5426 + 1.36446 + 1.45095 + 1.35236 + 1.30745 + 1.11382 + 0.723316 + 0.907167 + 1.55149 + 1.1772 + 1.04995 + 1.3341 + 1.07459
 
+    val report = spinalConfig.generateVerilog(new NaxRiscv(plugins :+ new Plugin{
+      val logic = create late new Area{
+        val dcacheCmd = getService[DataCachePlugin].logic.cache.io.store.cmd
+        val icacheInv = getService[FetchCachePlugin].logic.invalidate
+        val flushingStuff = dcacheCmd.valid && dcacheCmd.flush || !icacheInv.done
+        val counter = Reg(UInt(64 bits)) init(0)
+        counter := counter + 2
+        def addTimeout(cycles : Int): Unit ={
+          val noCommit = Timeout(cycles)
+          when(getService[CommitService].onCommit().mask.orR || flushingStuff) {noCommit.clear()}
+          when((noCommit.state.setName("noCommitTrigger" + cycles)).rise()){
+            spinal.core.report(L"lol ${counter}")
+          }
+        }
+        addTimeout(200)
+      }
+    }))
+
+// no MMU
+LUT	12957	133800	9.683856
+LUTRAM	2805	46200	6.071429
+FF	9278	267600	3.467115
+BRAM	11.5	365	3.1506848
+DSP	4	740	0.5405406
+IO	245	500	49.0
+BUFG	1	32	3.125
+
+// no memory
+LUT	7875	133800	5.88565
+LUTRAM	1964	46200	4.2510824
+FF	5641	267600	2.107997
+BRAM	6	365	1.6438355
+DSP	4	740	0.5405406
+IO	138	500	27.599998
+BUFG	1	32	3.125
  */

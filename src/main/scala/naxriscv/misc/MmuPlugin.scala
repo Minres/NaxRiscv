@@ -4,10 +4,11 @@ import naxriscv._
 import naxriscv.Global._
 import naxriscv.fetch.FetchPlugin
 import naxriscv.interfaces.AddressTranslationPortUsage.LOAD_STORE
-import naxriscv.interfaces.{AddressTranslationPortUsage, AddressTranslationRsp, AddressTranslationService, CsrRamService, CsrService, PostCommitBusy, PulseHandshake}
+import naxriscv.interfaces.{AddressTranslationPortUsage, AddressTranslationRsp, AddressTranslationService, CsrRamService, CsrService, PostCommitBusy}
 import naxriscv.lsu.DataCachePlugin
 import naxriscv.riscv.CSR
 import naxriscv.utilities.Plugin
+import spinal.core
 import spinal.core._
 import spinal.lib._
 import spinal.lib.fsm._
@@ -94,6 +95,7 @@ class MmuPlugin(var spec : MmuSpec,
 
   case class PortSpec(stages: Seq[Stage],
                       preAddress: Stageable[UInt],
+                      allowRefill : Stageable[Bool],
                       usage : AddressTranslationPortUsage,
                       pp: MmuPortParameter,
                       ss : StorageSpec,
@@ -115,6 +117,7 @@ class MmuPlugin(var spec : MmuSpec,
 
   override def newTranslationPort(stages: Seq[Stage],
                                   preAddress: Stageable[UInt],
+                                  allowRefill : Stageable[Bool],
                                   usage : AddressTranslationPortUsage,
                                   portSpec: Any,
                                   storageSpec: Any) = {
@@ -124,6 +127,7 @@ class MmuPlugin(var spec : MmuSpec,
       new PortSpec(
         stages        = stages,
         preAddress    = preAddress,
+        allowRefill   = allowRefill,
         usage         = usage,
         pp = pp,
         ss = ss,
@@ -143,7 +147,7 @@ class MmuPlugin(var spec : MmuSpec,
     fetch.retain()
 
     val cacheLoad = cache.newLoadPort(priority = 1)
-    val invalidatePort = PulseHandshake().setIdleAll()
+    val invalidatePort = FlowCmdRsp().setIdleAll()
   }
 
   val logic = create late new Area{
@@ -194,7 +198,7 @@ class MmuPlugin(var spec : MmuSpec,
 
     csr.onDecode(CSR.SATP){
       csr.onDecodeFlushPipeline()
-      setup.invalidatePort.request := True
+      setup.invalidatePort.cmd.valid := True
     }
 
     ram.allocationLock.release()
@@ -243,7 +247,7 @@ class MmuPlugin(var spec : MmuSpec,
       val storage = storages.find(_.self == ps.ss).get
 
 
-      readStage(ALLOW_REFILL) := True
+      readStage(ALLOW_REFILL) := (if(allowRefill != null) readStage(allowRefill) else True)
       val allowRefillBypass = for(stageId <- pp.readAt to pp.ctrlAt) yield new Area{
         val stage = ps.stages(stageId)
         val reg = RegInit(True)
@@ -475,7 +479,7 @@ class MmuPlugin(var spec : MmuSpec,
     }
 
     val invalidate = new Area{
-      val requested = RegInit(True) setWhen(setup.invalidatePort.request)
+      val requested = RegInit(True) setWhen(setup.invalidatePort.cmd.valid)
       val canStart = True
       val depthMax = storageSpecs.map(_.p.levels.map(_.depth).max).max
       val counter = Reg(UInt(log2Up(depthMax)+1 bits)) init(0)
@@ -503,10 +507,10 @@ class MmuPlugin(var spec : MmuSpec,
         canStart := False
       }
 
-      setup.invalidatePort.served setWhen(done.rise(False))
+      setup.invalidatePort.rsp.valid setWhen(done.rise(False))
     }
     fetch.release()
-    refill.build()
+    core.fiber.hardFork(refill.build())
   }
 }
 

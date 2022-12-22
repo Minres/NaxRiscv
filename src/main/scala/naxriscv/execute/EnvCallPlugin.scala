@@ -4,7 +4,7 @@ import naxriscv.Global._
 import naxriscv.fetch.{FetchCachePlugin, FetchPlugin}
 import naxriscv.frontend.DispatchPlugin
 import naxriscv.interfaces.{AddressTranslationService, CommitService, DecoderService, MicroOp, ScheduleReason}
-import naxriscv.lsu.LsuPlugin
+import naxriscv.lsu.{LsuFlusher, LsuPlugin}
 import naxriscv.misc.PrivilegedPlugin
 import naxriscv.riscv.{CSR, Const, Rvi}
 import naxriscv.utilities._
@@ -109,8 +109,8 @@ class EnvCallPlugin(val euId : String)(var rescheduleAt : Int = 0) extends Plugi
     val flushes = new StateMachine{
       val vmaPort = getService[AddressTranslationService].invalidatePort
       val fetchPort = getService[FetchCachePlugin].invalidatePort
-      val lsuPort   = getServiceOption[LsuPlugin] match {
-        case Some(lsu) => lsu.flushPort
+      val lsuPort   = getServiceOption[LsuFlusher] match {
+        case Some(lsu) => lsu.getFlushPort()
         case None => println("No LSU plugin for the EnvCallPlugin flush ???"); null
       }
 
@@ -145,29 +145,29 @@ class EnvCallPlugin(val euId : String)(var rescheduleAt : Int = 0) extends Plugi
       }
 
       VMA_FETCH_FLUSH whenIsActive {
-        vmaPort.request   setWhen(vmaInv)
-        fetchPort.request setWhen(fetchInv)
+        vmaPort.cmd.valid   setWhen(vmaInv)
+        fetchPort.cmd.valid setWhen(fetchInv)
         goto(VMA_FETCH_WAIT)
       }
 
       VMA_FETCH_WAIT whenIsActive{
-        when(fetchPort.served) {
+        when(fetchPort.rsp.valid) {
           goto(if(lsuPort != null) LSU_FLUSH else IDLE)
         }
-        when(vmaPort.served){
+        when(vmaPort.rsp.valid){
           goto(IDLE)
         }
       }
 
       if(lsuPort != null) {
         LSU_FLUSH whenIsActive {
-          lsuPort.request := True
+          lsuPort.cmd.valid := True
           lsuPort.cmd.withFree := flushData
           goto(WAIT_LSU)
         }
 
         WAIT_LSU whenIsActive {
-          when(lsuPort.served) {
+          when(lsuPort.rsp.valid) {
             goto(IDLE)
           }
         }

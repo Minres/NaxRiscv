@@ -5,7 +5,7 @@ import naxriscv.fetch._
 import naxriscv.lsu._
 import naxriscv.misc._
 import naxriscv.utilities._
-import naxriscv.compatibility.{EnforceSyncRamPhase, MultiPortWritesSymplifier}
+import naxriscv.compatibility.{EnforceSyncRamPhase, MemReadDuringWritePatcherPhase, MultiPortWritesSymplifier}
 import naxriscv.debug.EmbeddedJtagPlugin
 import naxriscv.platform.ScalaInterpreter.evaluate
 import spinal.core._
@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 class NaxRiscvLitex(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UInt => Bool) extends Component{
 
   val ramDataWidth = 64
-  val ioDataWidth  =  32
+  val ioDataWidth  = 32
   plugins += new FetchAxi4(
     ramDataWidth = ramDataWidth,
     ioDataWidth  = ioDataWidth,
@@ -32,7 +32,9 @@ class NaxRiscvLitex(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UI
   plugins += new DataCacheAxi4(
     dataWidth = ramDataWidth
   )
-  plugins += new LsuPeripheralAxiLite4()
+  plugins += new LsuPeripheralAxiLite4(
+    ioDataWidth  = ioDataWidth
+  )
 
   val cpu = new NaxRiscv(
     plugins
@@ -73,7 +75,7 @@ class NaxRiscvLitex(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UI
     AxiLite4SpecRenamer(ibus)
     AxiLite4SpecRenamer(dbus)
 
-    val clintCtrl = new AxiLite4Clint(1)
+    val clintCtrl = new AxiLite4Clint(1, bufferTime = xlen == 64)
     val plicCtrl = new AxiLite4Plic(
       sourceCount = 31,
       targetCount = 2
@@ -91,7 +93,7 @@ class NaxRiscvLitex(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UI
     priv.int.machine.timer       := clintCtrl.io.timerInterrupt(0)
     priv.int.machine.software    := clintCtrl.io.softwareInterrupt(0)
     priv.int.machine.external    := plicCtrl.io.targets(0)
-    priv.int.supervisor.external := plicCtrl.io.targets(1)
+    if(priv.int.supervisor != null) priv.int.supervisor.external := plicCtrl.io.targets(1)
     priv.rdtime                  := clintCtrl.io.time
   }
 }
@@ -143,6 +145,7 @@ object LitexGen extends App{
   }.parse(args))
 
   val spinalConfig = SpinalConfig(inlineRom = true, targetDirectory = netlistDirectory)
+  spinalConfig.addTransformationPhase(new MemReadDuringWritePatcherPhase)
   spinalConfig.addTransformationPhase(new MultiPortWritesSymplifier)
   spinalConfig.addStandardMemBlackboxing(blackboxByteEnables)
   spinalConfig.addTransformationPhase(new EnforceSyncRamPhase)
@@ -214,12 +217,21 @@ boot 0x40f00000
 dtc -O dtb -o rv32.dtb arty_a7.dts
 py3tftp -p 69
 
+tar -cvf chroot.tar debian-riscv64-tarball-20180418
+curl --upload-file chroot.tar https://transfer.sh/chroot.tar
+
+mount -o remount,rw /
+
 picocom -b 115200 /dev/ttyUSB1 --imap lfcrlf
-qemu-img convert -f qcow2 -O raw sid-rv64.qcow2 /dev/sdb3
+qemu-img convert -f qcow2 -O raw sid.qcow2 /dev/sdb3
 qemu image => https://wiki.debian.org/RISC-V#OS_.2F_filesystem_imageshttps://gist.github.com/shamil/62935d9b456a6f9877b5
 sudo gedit /media/rawrr/rootfs/lib/systemd/system/getty@.service
 https://gist.github.com/shamil/62935d9b456a6f9877b5
 
+-drive file=/dev/sdb,format=raw,if=virtio
+
+nano /etc/ssh/sshd_config
+PermitRootLogin yes
 
 sudo modprobe nbd max_part=8
 sudo qemu-nbd --connect=/dev/nbd0 sid.qcow2
@@ -261,6 +273,8 @@ python3 -m litex_boards.targets.digilent_nexys_video --cpu-type=naxriscv  --with
 
 python3 -m litex_boards.targets.digilent_nexys_video --cpu-type=naxriscv  --with-video-framebuffer --with-spi-sdcard --with-ethernet --xlen=32 --scala-args='rvc=false,rvf=false,rvd=false' --with-jtag-instruction --csr-csv build/digilent_nexys_video/csr.csv --csr-json build/digilent_nexys_video/csr.json --load
 
+curl https://www.ports.debian.org/archive_2022.key | apt-key add -
+
 extract cpio =>
 sudo cpio -iv < /tmp/archive.cpio
 
@@ -293,8 +307,10 @@ Nax : timed 5026 gametics in 4958 realtics (35.480034 fps)
       timed 5026 gametics in 3692 realtics (47.646263 fps)
       timed 5026 gametics in 3444 realtics (51.077236 fps) (no more memcpy for doom flush)
       timed 5026 gametics in 3395 realtics (51.814434 fps)
+      timed 5026 gametics in 3187 realtics (55.196110 fps) (LSU2)
       timed 5026 gametics in 2369 realtics (74.254959 fps) (-1)
       timed 5026 gametics in 2301 realtics (76.449371 fps) (-1)
+      timed 5026 gametics in 2375 realtics (74.067368 fps) (LSU2)
 Vex : timed 5026 gametics in 5606 realtics (31.378880 fps)
       timed 5026 gametics in 5238 realtics (33.583427 fps)
       timed 5026 gametics in 4866 realtics (36.150841 fps) (-1)
@@ -307,6 +323,7 @@ Nax : timed 5026 gametics in 2040 realtics (86.230392 fps)
       timed 5026 gametics in 1781 realtics (98.770355 fps)
       timed 5026 gametics in 1786 realtics (98.493843 fps)
       timed 5026 gametics in 1751 realtics (100.462593 fps)
+      timed 5026 gametics in 1737 realtics (101.272308 fps) (LSU2)
 Vex : timed 5026 gametics in 3851 realtics (45.679043 fps)
 
 no draw no blit :
@@ -444,8 +461,12 @@ root
 export DISPLAY=:0
 chocolate-doom -2 -timedemo demo1.lmp
 
-python3 -m litex_boards.targets.digilent_nexys_video --cpu-type=naxriscv  --with-video-framebuffer --with-spi-sdcard --with-ethernet --xlen=64 --scala-args='rvc=true,rvf=true,rvd=true' --with-jtag-instruction --build --load
-python3 -m litex_boards.targets.digilent_nexys_video --cpu-type=naxriscv  --with-video-framebuffer --with-spi-sdcard --with-ethernet --xlen=64 --scala-args='rvc=true,rvf=true,rvd=true,alu-count=1,decode-count=1' --with-jtag-instruction --build --load
+python3 -m litex_boards.targets.digilent_nexys_video --cpu-type=naxriscv  --bus-standard axi-lite --with-video-framebuffer --with-spi-sdcard --with-ethernet --xlen=64 --scala-args='rvc=true,rvf=true,rvd=true' --with-jtag-tap --build --load
+python3 -m litex_boards.targets.digilent_nexys_video --cpu-type=naxriscv  --bus-standard axi-lite --with-video-framebuffer --with-spi-sdcard --with-ethernet --xlen=64 --scala-args='rvc=true,rvf=true,rvd=true,alu-count=1,decode-count=1' --with-jtag-instruction --build --load
+python3 -m litex_boards.targets.digilent_arty --variant=a7-100  --cpu-type=naxriscv  --with-spi-sdcard --with-ethernet --xlen=64 --scala-args='rvc=true,rvf=true,rvd=true,alu-count=1,decode-count=1'  --build --load
+python3 -m litex_boards.targets.efinix_titanium_ti60_f225_dev_kit --cpu-type=naxriscv --xlen=32 --scala-args='rvc=false,rvf=false,rvd=false,alu-count=1,decode-count=1,mmu=false,supervisor=false,distributed-ram=false,dispatch-slots=16,rob-size=32' --build
+
+
 
 ./make.py --board=arty --variant=a7-100 --cpu-count=1 --load
 
@@ -544,5 +565,44 @@ I_InitFb 800x600, 3200 32bpp
 [    3.751280] Freeing unused kernel image (initmem) memory: 212K
 [    3.756451] Kernel memory protection not selected by kernel config.
 [    3.762731] Run /init as init process
+
+
+
+dri => -extension GLX ?
+lsof /usr/lib/riscv64-linux-gnu/dri/swrast_dri.so
+
+/etc/X11/xorg.conf
+Section "Extensions"
+	Option "GLX" "Disable"
+EndSection
+
+cat /var/log/Xorg.0.log
+
+xauth -f /tmp/lightdmauth
+list
+exit
+
+
+cp /var/run/lightdm/root/:0 /tmp/lightdmauth
+chmod a+r /tmp/lightdmauth
+export XAUTHORITY=/tmp/lightdmauth
+export DISPLAY=unix:0
+
+xdotool type root
+xdotool key Tab
+xdotool type root
+xdotool key Return
+
+
+nohup /usr/games/openttd -v sdl -b 8bpp-optimized -s null -m null &
+nohup /usr/games/chocolate-doom -iwad Doom1.WAD  -1 -nosound &
+SDL_NOMOUSE=1 nohup VisualBoyAdvance -1  emu/Tetris.gb &
+nohup xterm -geometry 120x15 -e  watch whetstone/raystones &
+
+Debian setup :
+set dns, configure eth0, enable time over internet
+enable root ssh
+disable x11 GLX extention
+enable HVC0
 
  */

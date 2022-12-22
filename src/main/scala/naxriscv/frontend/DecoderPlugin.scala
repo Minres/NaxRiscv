@@ -223,6 +223,8 @@ class DecoderPlugin(xlen : Int) extends Plugin with DecoderService with LockedIm
           case FPU => fpSpec.addNeeds(key, one)
           case RM => rmSpec.addNeeds(key, one)
           case r if resourceToStageable.contains(r) => resourceToSpec(r).addNeeds(key, one)
+          case naxriscv.interfaces.SQ =>
+          case naxriscv.interfaces.LQ =>
         }
       }
 
@@ -392,6 +394,7 @@ class DecoderPlugin(xlen : Int) extends Plugin with DecoderService with LockedIm
       for(slotId <- 0 until DECODE_COUNT) {
         Verilator.public(stage(INSTRUCTION_DECOMPRESSED, slotId))
         Verilator.public(stage(PC, slotId))
+        Verilator.public(stage(DECODED_MASK, slotId))
       }
 
       doc.property("DECODE_COUNT", DECODE_COUNT.get)

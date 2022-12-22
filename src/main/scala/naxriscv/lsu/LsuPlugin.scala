@@ -5,7 +5,7 @@ import naxriscv.{Fetch, Frontend, Global, ROB}
 import naxriscv.frontend.{DispatchPlugin, FrontendPlugin, RfDependencyPlugin}
 import naxriscv.interfaces._
 import naxriscv.riscv.{AtomicAlu, CSR, FloatRegFile, IntRegFile, Rvi}
-import naxriscv.utilities.{AddressToMask, DocPlugin, Plugin, WithRfWriteSharedSpec}
+import naxriscv.utilities.{AddressToMask, DocPlugin, Plugin, Service, WithRfWriteSharedSpec}
 import spinal.core._
 import spinal.lib._
 import spinal.lib.pipeline.Connection.M2S
@@ -24,6 +24,33 @@ import spinal.lib.bus.bmb.{Bmb, BmbAccessParameter, BmbParameter, BmbSourceParam
 import spinal.lib.fsm._
 
 import scala.collection.mutable
+
+/*
+Potential V2 ?
+- Single address pipeline (and so mmu translation)
+- Store mmu translation for following replays
+- Shift register based address queue
+- merging store / load queues
+
+Single address pipeline downside =>
+- Lower peak bandwidth in the LSU
+
+Store mmu translation for following replays downsides =>
+- Bypass required between mmu -> cache (which is a very critical path)
+
+Shift register based address queue =>
+--
+s-1
+- replay selection =>
+  Faster priority selection (as the order is static)
+  But require to OhMux the context ID
+S0
+- AGU
+- AGU / replay arbitration
+S1
+- match queues 12 bits LSB, mask against priority
+
+ */
 
 object LsuUtils{
   def sizeWidth(wordWidth : Int) = log2Up(log2Up(wordWidth/8)+1)
@@ -97,6 +124,59 @@ case class LsuPeripheralBus(p : LsuPeripheralBusParameter) extends Bundle with I
     slave(rsp)
   }
 
+  def resize(width : Int) : LsuPeripheralBus = {
+    if(width == p.dataWidth) return this
+    if(width < p.dataWidth) return downWidthImpl(width)
+    ???
+  }
+  def downWidthImpl(width : Int): LsuPeripheralBus = new Composite(this, "downWidth"){
+    val ret = LsuPeripheralBus(p.copy(dataWidth = width))
+    val ratio = p.dataWidth/width
+    val sizeMax = log2Up(width / 8)
+    def addressAdd(addr : UInt, off :UInt) = U(cmd.address.dropLow(log2Up(p.dataWidth))) @@ (cmd.address(0, log2Up(p.dataWidth) bits) + off)
+
+    val front = new Area {
+      val counter = Reg(UInt(log2Up(ratio) bits)) init (0)
+      val cmdSel = ret.cmd.address(log2Up(width/8), log2Up(ratio) bits)
+
+      val beats = cmd.size.muxListDc((0 to log2Up(p.dataWidth / 8)).map(v => v ->U(((1 << v)*8+width-1)/width-1, log2Up(ratio) bits)))
+      ret.cmd.valid := cmd.valid
+      ret.cmd.write := cmd.write
+      ret.cmd.address := addressAdd(cmd.address, counter << log2Up(width/8))
+      ret.cmd.data := cmd.data.subdivideIn(ratio slices).read(cmdSel)
+      ret.cmd.mask := cmd.mask.subdivideIn(ratio slices).read(cmdSel)
+      ret.cmd.size := cmd.size.min(sizeMax)
+      cmd.ready := ret.cmd.ready && counter === beats
+
+      when(ret.cmd.fire){counter := counter + 1}
+      when(cmd.ready) { counter := 0 }
+    }
+
+    val back = new Area{
+      val lastAt, offset = Reg(UInt(log2Up(ratio) bits))
+
+      when(cmd.valid.rise){
+        lastAt := cmd.address(log2Up(width/8), log2Up(ratio) bits) + front.beats
+        offset := cmd.address(log2Up(width/8), log2Up(ratio) bits)
+      }
+      val buffer = Reg(Bits(p.dataWidth-width bits))
+      when(ret.rsp.fire){
+        switch(offset){
+          for(i <- 0 to ratio-2){
+            is(i){
+              buffer(width*i, width bits) := ret.rsp.data
+            }
+          }
+        }
+        offset := offset + 1
+      }
+
+      rsp.valid := ret.rsp.valid && offset === lastAt
+      rsp.data := ret.rsp.data ## buffer.getAheadValue
+      rsp.error := ret.rsp.error
+    }
+  }.ret
+
   def toAxiLite4(): AxiLite4 = new Composite(this, "toAxiLite4"){
     val axiConfig = AxiLite4Config(
       addressWidth = p.addressWidth,
@@ -110,7 +190,7 @@ case class LsuPeripheralBus(p : LsuPeripheralBusParameter) extends Bundle with I
 
     a.ready := (a.write ? axi.aw.ready | axi.ar.ready)
 
-    val addr = U(a.address.dropLow(log2Up(LSLEN/8)) << log2Up(LSLEN/8))
+    val addr = U(a.address.dropLow(log2Up(p.dataWidth/8)) << log2Up(p.dataWidth/8))
 
     //AR
     axi.ar.valid := a.valid && !a.write
@@ -166,6 +246,11 @@ case class LsuFlushPayload() extends Bundle{
   val withFree = Bool()
 }
 
+trait LsuFlusher extends Service{
+  def getFlushPort(): FlowCmdRsp[LsuFlushPayload, NoData]
+}
+
+
 class LsuPlugin(var lqSize: Int,
                 var sqSize : Int,
                 var translationStorageParameter : Any,
@@ -182,7 +267,9 @@ class LsuPlugin(var lqSize: Int,
                 var loadCheckSqAt : Int = 1,
                 var loadCtrlAt : Int = 3,
                 var intRfWriteSharing : Any = new {},
-                var storeReadRfWithBypass : Boolean = false) extends Plugin with LockedImpl with WakeRobService with WakeRegFileService with PostCommitBusy with WithRfWriteSharedSpec{
+                var storeReadRfWithBypass : Boolean = false,
+                val loadWriteRfOnPrivilegeFail: Boolean = false //Side channel attack if true
+               ) extends Plugin with LockedImpl with WakeRobService with WakeRegFileService with PostCommitBusy with WithRfWriteSharedSpec with LsuFlusher{
 
   val rfWriteSharing = mutable.LinkedHashMap[RegfileSpec, Any]()
   def addRfWriteSharing(rf : RegfileSpec, key : Any) : this.type = {
@@ -200,6 +287,7 @@ class LsuPlugin(var lqSize: Int,
   def pageOffsetWidth = pageOffsetRange.size
   def pageNumberWidth = pageNumberRange.size
   override def postCommitBusy = setup.postCommitBusy
+  override def getFlushPort() : FlowCmdRsp[LsuFlushPayload, NoData]= setup.flushPort
 
   val peripheralBus = create late master(LsuPeripheralBus(PHYSICAL_WIDTH, wordWidth))
   
@@ -295,7 +383,7 @@ class LsuPlugin(var lqSize: Int,
     val loadTrap = commit.newSchedulePort(canTrap = true, canJump = false)
     val storeTrap = commit.newSchedulePort(canTrap = true, canJump = true)
     val specialTrap = commit.newSchedulePort(canTrap = true, canJump = false)
-    val flushPort = PulseHandshake(LsuFlushPayload(), NoData()).setIdleAll()
+    val flushPort = FlowCmdRsp(LsuFlushPayload(), NoData()).setIdleAll()
 
     decoder.addResourceDecoding(naxriscv.interfaces.LQ, LQ_ALLOC)
     decoder.addResourceDecoding(naxriscv.interfaces.SQ, SQ_ALLOC)
@@ -446,6 +534,9 @@ class LsuPlugin(var lqSize: Int,
         }
 
         val mem = Mem.fill(hitPedictionEntries)(HitPredictionEntry())
+        if(GenerationFlags.simulation){
+          mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
+        }
         val writePort = mem.writePort
         val writeLast = writePort.stage()
       }
@@ -722,6 +813,7 @@ class LsuPlugin(var lqSize: Int,
         val translationPort = translationService.newTranslationPort(
           stages = this.stages,
           preAddress = ADDRESS_PRE_TRANSLATION,
+          allowRefill = null,
           usage = LOAD_STORE,
           portSpec = loadTranslationParameter,
           storageSpec = setup.translationStorage
@@ -791,7 +883,7 @@ class LsuPlugin(var lqSize: Int,
                 case false => False
               })
 
-              HIT_SPECULATION := portPush.hitPrediction.likelyToHit && !speculativeHitPredictionDisabled//Keep in mind, HIT_SPECULATION is only for request comming from the LoadPlugin directly
+              HIT_SPECULATION := portPush.hitPrediction.likelyToHit && !speculativeHitPredictionDisabled //Keep in mind, HIT_SPECULATION is only for request comming from the LoadPlugin directly
               when(port.valid && isFireing){
                 for(reg <- regs) when(portPush.oh(reg.id)){
                   reg.waitOn.cacheRsp := True
@@ -953,9 +1045,12 @@ class LsuPlugin(var lqSize: Int,
             i -> B((LSLEN - 1 downto off) -> (rspShifted(off-1) && !rspUnsigned), (off-1 downto 0) -> rspShifted(off-1 downto 0))
           })
 
-
+          val doIt = loadWriteRfOnPrivilegeFail match {
+            case false => isValid && WRITE_RD && tpk.ALLOW_READ && !tpk.PAGE_FAULT && !tpk.ACCESS_FAULT
+            case true  => isValid && WRITE_RD
+          }
           for((spec, regfile) <- setup.regfilePorts) {
-            regfile.write.valid   := isValid && WRITE_RD && decoder.REGFILE_RD === decoder.REGFILE_RD.rfToId(spec)
+            regfile.write.valid   := doIt && decoder.REGFILE_RD === decoder.REGFILE_RD.rfToId(spec)
             regfile.write.address := decoder.PHYS_RD
             regfile.write.data    := rspFormated.resized
             regfile.write.robId   := ROB.ID
@@ -1059,7 +1154,7 @@ class LsuPlugin(var lqSize: Int,
           }
 
           //Critical path extracted to help synthesis
-          val doCompletion = isFireing && !LOAD_FRESH_WAIT_SQ && !LOAD_WRITE_FAILURE && (!OLDER_STORE_HIT || stage(OLDER_STORE_BYPASS_SUCCESS)) && !missAligned && !pageFault && !pageFault && !accessFault && !tpk.IO
+          val doCompletion = isFireing && !LOAD_FRESH_WAIT_SQ && !LOAD_WRITE_FAILURE && (!OLDER_STORE_HIT || stage(OLDER_STORE_BYPASS_SUCCESS)) && !missAligned && !pageFault && !accessFault && !tpk.IO
           KeepAttribute(doCompletion)
           val success = doCompletion && !rsp.redo
           when(success){
@@ -1241,6 +1336,7 @@ class LsuPlugin(var lqSize: Int,
         val translationPort = translationService.newTranslationPort(
           stages = this.stages,
           preAddress = ADDRESS_PRE_TRANSLATION,
+          allowRefill = null,
           usage = LOAD_STORE,
           portSpec = storeTranslationParameter,
           storageSpec = setup.translationStorage
@@ -1651,7 +1747,7 @@ class LsuPlugin(var lqSize: Int,
       def rsp = setup.cacheStore.rsp
 
       doit := sq.ptr.commit === sq.ptr.free
-      when(setup.flushPort.request){
+      when(setup.flushPort.cmd.valid){
         cmdPtr := 0
         rspPtr := 0
         busy   := True
@@ -1683,7 +1779,7 @@ class LsuPlugin(var lqSize: Int,
         }
         when(rspPtr.msb && !cache.writebackBusy){
           busy := False
-          setup.flushPort.served := True
+          setup.flushPort.rsp.valid := True
         }
       }
     }
