@@ -109,6 +109,13 @@ case class LitexMemoryRegion(mapping : SizeMapping, mode : String, bus : String)
   def onMemory = !onPeripheral
 }
 
+trait Zero[A] { def zero: A }
+object Zero {
+  def zero[A](f: => A): Zero[A] = new Zero[A] { val zero = f }
+  implicit val intZero: Zero[Int]             = zero(0)
+  implicit val unitZero: Zero[Unit]           = zero(())
+}
+
 object LitexGen extends App{
   var netlistDirectory = "."
   var netlistName = "NaxRiscvLitex"
@@ -121,7 +128,7 @@ object LitexGen extends App{
   val scalaArgs = ArrayBuffer[String]()
   val memoryRegions = ArrayBuffer[LitexMemoryRegion]()
 
-  assert(new scopt.OptionParser[Unit]("NaxRiscv") {
+  val res = new scopt.OptionParser[Unit]("NaxRiscv") {
     help("help").text("prints this usage text")
     opt[String]("netlist-directory") action { (v, c) => netlistDirectory = v }
     opt[String]("netlist-name") action { (v, c) => netlistName = v }
