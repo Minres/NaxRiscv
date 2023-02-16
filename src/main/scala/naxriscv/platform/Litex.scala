@@ -109,13 +109,6 @@ case class LitexMemoryRegion(mapping : SizeMapping, mode : String, bus : String)
   def onMemory = !onPeripheral
 }
 
-trait Zero[A] { def zero: A }
-object Zero {
-  def zero[A](f: => A): Zero[A] = new Zero[A] { val zero = f }
-  implicit val intZero: Zero[Int]             = zero(0)
-  implicit val unitZero: Zero[Unit]           = zero(())
-}
-
 object LitexGen extends App{
   var netlistDirectory = "."
   var netlistName = "NaxRiscvLitex"
@@ -128,7 +121,7 @@ object LitexGen extends App{
   val scalaArgs = ArrayBuffer[String]()
   val memoryRegions = ArrayBuffer[LitexMemoryRegion]()
 
-  val res = new scopt.OptionParser[Unit]("NaxRiscv") {
+  assert(new scopt.OptionParser[Unit]("NaxRiscv") {
     help("help").text("prints this usage text")
     opt[String]("netlist-directory") action { (v, c) => netlistDirectory = v }
     opt[String]("netlist-name") action { (v, c) => netlistName = v }
@@ -149,11 +142,7 @@ object LitexGen extends App{
       assert(!(r.onMemory && !r.isCachable), s"Region $r isn't supported by NaxRiscv, data cache will always cache memory")
       assert(!(r.onMemory &&  r.isIo ), s"Region $r isn't supported by NaxRiscv, IO have to be on peripheral bus")
     }
-  }.parse(args, Zero.unitZero) match {
-    case Some(config) =>
-    case None =>
-      assert(false, "Illegal CLI arguments")
-  }
+  }.parse(args, Unit).nonEmpty)
 
   val spinalConfig = SpinalConfig(inlineRom = true, targetDirectory = netlistDirectory)
   spinalConfig.addTransformationPhase(new MemReadDuringWritePatcherPhase)
@@ -617,3 +606,4 @@ disable x11 GLX extention
 enable HVC0
 
  */
+
