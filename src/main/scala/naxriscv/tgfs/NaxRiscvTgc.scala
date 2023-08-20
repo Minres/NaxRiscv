@@ -50,19 +50,19 @@ class NaxRiscvTgc(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UInt
       }
       case _ =>
     }
+  }
 
-    val nc = new Area {
-      val ibus = core.framework.getService[FetchAxi4].logic.axiPeripheral.toIo()
-      val dbus = core.framework.getService[LsuPeripheralAxiLite4].logic.axi.toIo()
-      AxiLite4SpecRenamer(ibus)
-      AxiLite4SpecRenamer(dbus)
+  val nc = new Area {
+    val ibus = core.framework.getService[FetchAxi4].logic.axiPeripheral.toIo()
+    val dbus = core.framework.getService[LsuPeripheralAxiLite4].logic.axi.toIo()
+    AxiLite4SpecRenamer(ibus)
+    AxiLite4SpecRenamer(dbus)
 
 
-      priv.int.machine.timer := timIrq
-      priv.int.machine.software := swIrq
-      priv.int.machine.external := extIrq
-      if (priv.int.supervisor != null) priv.int.supervisor.external := extIrqSv
-      priv.rdtime := rdtime.asUInt
-    }
+    priv.int.machine.timer := timIrq
+    priv.int.machine.software := swIrq
+    priv.int.machine.external := extIrq
+    if (priv.int.supervisor != null) priv.int.supervisor.external := extIrqSv
+    priv.rdtime := rdtime.asUInt
   }
 }
