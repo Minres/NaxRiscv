@@ -13,48 +13,12 @@ import spinal.lib.bus.amba4.axilite._
 
 import scala.collection.mutable.ArrayBuffer
 
-object Axi4LReadOnlyArbiter{
-  def getInputConfig(outputConfig : AxiLite4Config, inputsCount : Int) = outputConfig.copy()
+object NaxRiscvTgcA {
+  def apply(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool): NaxRiscvTgcA =
+    new NaxRiscvTgcA(plugins, xlen, toPeripheral)
 }
 
-case class Axi4LReadOnlyArbiter(outputConfig: AxiLite4Config,inputsCount : Int) extends Component {
-  val inputConfig = Axi4LReadOnlyArbiter.getInputConfig(outputConfig,inputsCount)
-  val io = new Bundle{
-    val inputs = Vec(slave(AxiLite4ReadOnly(inputConfig)),inputsCount)
-    val output = master(AxiLite4ReadOnly(outputConfig))
-  }
-
-  val target = AxiLite4ReadOnly(outputConfig)
-  val cmdArbiter = StreamArbiterFactory().roundRobin.build(AxiLite4Ax(inputConfig),inputsCount)
-  (cmdArbiter.io.inputs,io.inputs.map(_.readCmd)).zipped.map(_ <> _)
-  cmdArbiter.io.output <> target.readCmd
-  val (t1, t2) = StreamFork2(target.readCmd, synchronous=false)
-  io.output.readCmd <> t1
-
-  val idIn = Stream(UInt (log2Up(inputsCount) bit))
-  val idSkid = idIn.s2mPipe(8)
-
-  idIn.valid := t2.valid
-  idIn.payload := cmdArbiter.io.chosen
-  t2.ready := idIn.ready
-
-  // Route readResp
-  val readRspIndex = idSkid.payload
-  val readRspSels = (0 until inputsCount).map(readRspIndex === _)
-  for((input,sel)<- (io.inputs,readRspSels).zipped){
-    input.readRsp.valid := io.output.readRsp.valid && idSkid.valid && sel
-    input.readRsp.payload <> io.output.readRsp.payload
-  }
-  io.output.readRsp.ready := io.inputs(readRspIndex).readRsp.ready
-  idSkid.ready := io.inputs(readRspIndex).readRsp.ready && idSkid.valid
-}
-
-object NaxRiscvTgcArbitrated {
-  def apply(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool): NaxRiscvTgcArbitrated =
-    new NaxRiscvTgcArbitrated(plugins, xlen, toPeripheral)
-}
-
-class NaxRiscvTgcArbitrated(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
+class NaxRiscvTgcA(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
   val io = new Bundle {
 //    var axi4_bus: Axi4 = _
 //    var axi4l_bus :AxiLite4 = _
