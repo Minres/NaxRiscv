@@ -85,12 +85,11 @@ class NaxRiscvTgcB(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt =
     wresizer.io.input.writeCmd << nc_dbus.writeCmd
     wresizer.io.input.writeData << nc_dbus.writeData
     wresizer.io.input.writeRsp >> nc_dbus.writeRsp
-    val warbiter = Axi4WriteOnlyArbiter(ch_dbus.config.copy(idWidth = (ch_dbus.config.idWidth max nc_dbus.config.idWidth) + 1), inputsCount = 2, routeBufferSize = 4)
+    val warbiter = Axi4WriteOnlyArbiter(ch_dbus.config.copy(idWidth = (ch_dbus.config.idWidth max nc_dbus.config.idWidth) + 1), inputsCount = 2, routeBufferSize = 1)
     warbiter.io.inputs(0).writeCmd << ch_dbus.writeCmd
     warbiter.io.inputs(0).writeData<< ch_dbus.writeData
     warbiter.io.inputs(0).writeRsp >> ch_dbus.writeRsp
-    warbiter.io.inputs(1) << wresizer.io.output
-
+    warbiter.io.inputs(1) <> wresizer.io.output
     io.axi4_dbus = master(Axi4(warbiter.outputConfig)).setName("dBus")
     io.axi4_dbus.readCmd << rarbiter.io.output.readCmd
     io.axi4_dbus.readRsp >> rarbiter.io.output.readRsp
