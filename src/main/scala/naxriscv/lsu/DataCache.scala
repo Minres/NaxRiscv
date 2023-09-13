@@ -329,6 +329,7 @@ case class DataMemBus(p : DataMemBusParameter) extends Bundle with IMasterSlave 
 
     val w = wRaw.haltWhen(awFiltred.valid)
     axi.w.valid := w.valid
+    axi.w.id := w.id
     axi.w.data  := w.data
     axi.w.strb.setAll()
     axi.w.last  := w.last
