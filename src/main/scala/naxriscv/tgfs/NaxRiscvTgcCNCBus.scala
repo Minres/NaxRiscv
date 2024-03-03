@@ -13,12 +13,7 @@ import spinal.lib.bus.amba4.axilite._
 
 import scala.collection.mutable.ArrayBuffer
 
-object NaxRiscvTgcA {
-  def apply(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool): NaxRiscvTgcA =
-    new NaxRiscvTgcA(plugins, xlen, toPeripheral)
-}
-
-class NaxRiscvTgcA(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
+class NaxRiscvTgcCNCBus(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
   val io = new Bundle {
 //    var axi4_bus: Axi4 = _
 //    var axi4l_bus :AxiLite4 = _

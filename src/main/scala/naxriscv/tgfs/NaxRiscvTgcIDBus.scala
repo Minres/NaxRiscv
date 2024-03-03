@@ -14,12 +14,7 @@ import naxriscv.tgfs.TgcUtils._
 
 import scala.collection.mutable.ArrayBuffer
 
-object NaxRiscvTgcB {
-  def apply(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool): NaxRiscvTgcB =
-    new NaxRiscvTgcB(plugins, xlen, toPeripheral)
-}
-
-class NaxRiscvTgcB(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
+class NaxRiscvTgcIDBus(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
   val io = new Bundle {
     var axi4_ibus: Axi4ReadOnly = _
     var axi4_dbus :Axi4 = _
