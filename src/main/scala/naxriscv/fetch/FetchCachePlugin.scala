@@ -88,7 +88,8 @@ case class FetchL1Bus(p : FetchL1BusParameters) extends Bundle with IMasterSlave
   def resizer(newDataWidth : Int) : FetchL1Bus = new Composite(this, "resizer"){
     val ret = FetchL1Bus(
       p.copy(
-        withBackPresure = withBackPresure || newDataWidth > dataWidth
+        withBackPresure = withBackPresure || newDataWidth > dataWidth,
+        dataWidth = newDataWidth
       )
     )
 
