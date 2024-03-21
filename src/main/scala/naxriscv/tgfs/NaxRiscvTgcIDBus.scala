@@ -93,11 +93,13 @@ class NaxRiscvTgcIDBus(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UI
     io.axi4_dbus.writeRsp >> warbiter.io.output.writeRsp
     Axi4SpecRenamer(io.axi4_dbus)
   }
-  val priv = core.framework.getService[PrivilegedPlugin].io
-  priv.int.machine.timer := io.timIrq
-  priv.int.machine.software := io.swIrq
-  priv.int.machine.external := io.extIrq
-  priv.int.supervisor.external := io.extIrqSv
-  priv.rdtime := io.rdtime
+  val priv = core.framework.getService[PrivilegedPlugin]
+  val priv_io = priv.io
+  priv_io.int.machine.timer := io.timIrq
+  priv_io.int.machine.software := io.swIrq
+  priv_io.int.machine.external := io.extIrq
+  if(priv.implementSupervisor)
+    priv_io.int.supervisor.external := io.extIrqSv
+  priv_io.rdtime := io.rdtime
 }
 
