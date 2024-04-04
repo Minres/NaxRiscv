@@ -102,4 +102,3 @@ class NaxRiscvTgcIDBus(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UI
     priv_io.int.supervisor.external := io.extIrqSv
   priv_io.rdtime := io.rdtime
 }
-

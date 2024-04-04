@@ -68,6 +68,7 @@ object TgcUtils {
 
       axi.aw.arbitrationFrom(axiLite.aw)
       axi.aw.payload.assignSomeByName(axiLite.aw.payload)
+      axi.aw.size := U(log2Up(axiLite.config.dataWidth/8))
       axi.w.arbitrationFrom(axiLite.w)
       axi.w.payload.assignSomeByName(axiLite.w.payload)
       axi.w.last := True
@@ -76,6 +77,7 @@ object TgcUtils {
 
       axi.ar.arbitrationFrom(axiLite.ar)
       axi.ar.payload.assignSomeByName(axiLite.ar.payload)
+      axi.ar.size := U(log2Up(axiLite.config.dataWidth/8))
       axiLite.r.arbitrationFrom(axi.r)
       axiLite.r.payload.assignSomeByName(axi.r.payload)
 
@@ -92,6 +94,7 @@ object TgcUtils {
 
       axi.ar.arbitrationFrom(axiLite.ar)
       axi.ar.payload.assignSomeByName(axiLite.ar.payload)
+      axi.ar.size := U(log2Up(axiLite.config.dataWidth/8))
 
       axiLite.r.arbitrationFrom(axi.r)
       axiLite.r.payload.assignSomeByName(axi.r.payload)
