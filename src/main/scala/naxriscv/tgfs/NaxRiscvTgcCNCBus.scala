@@ -15,9 +15,8 @@ import scala.collection.mutable.ArrayBuffer
 
 class NaxRiscvTgcCNCBus(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: UInt => Bool) extends Component {
   val io = new Bundle {
-//    var axi4_bus: Axi4 = _
-//    var axi4l_bus :AxiLite4 = _
-
+    var axi4_io: AxiLite4 = _
+    var axi4_mem :Axi4 = _
     val timIrq = in Bool()
     val swIrq = in Bool()
     val extIrq = in Bool()
@@ -56,30 +55,27 @@ class NaxRiscvTgcCNCBus(plugins: ArrayBuffer[Plugin], xlen: Int, toPeripheral: U
     axi4_arbiter.io.inputs(0) << ch_ibus
     axi4_arbiter.io.inputs(1) << ch_dbus.toReadOnly()
 
-    val axi4_bus = master(Axi4(axi4_arbiter.outputConfig)).setName("mem")
-    axi4_bus << axi4_arbiter.io.output
-    axi4_bus << ch_dbus.toWriteOnly()
-    Axi4SpecRenamer(axi4_bus)
+    io.axi4_mem = master(Axi4(axi4_arbiter.outputConfig)).setName("mem")
+    io.axi4_mem << axi4_arbiter.io.output
+    io.axi4_mem << ch_dbus.toWriteOnly()
+    Axi4SpecRenamer(io.axi4_mem)
   }
   val noncoherent = new Area {
     val nc_ibus = core.framework.getService[FetchAxi4].logic.axiPeripheral
     val nc_dbus = core.framework.getService[LsuPeripheralAxiLite4].logic.axi
-    AxiLite4SpecRenamer(nc_ibus)
-    AxiLite4SpecRenamer(nc_dbus)
-
     val arbiter = Axi4LReadOnlyArbiter(nc_dbus.config, inputsCount = 2)
     arbiter.io.inputs(0).readCmd << nc_ibus.readCmd
     arbiter.io.inputs(0).readRsp >> nc_ibus.readRsp
     arbiter.io.inputs(1).readCmd << nc_dbus.readCmd
     arbiter.io.inputs(1).readRsp >> nc_dbus.readRsp
 
-    val axi4l_bus = master(AxiLite4(arbiter.outputConfig)).setName("per")
-    axi4l_bus.readCmd << arbiter.io.output.readCmd
-    axi4l_bus.readRsp >> arbiter.io.output.readRsp
-    axi4l_bus.writeCmd << nc_dbus.writeCmd
-    axi4l_bus.writeData << nc_dbus.writeData
-    axi4l_bus.writeRsp >> nc_dbus.writeRsp
-    AxiLite4SpecRenamer(axi4l_bus)
+    io.axi4_io = master(AxiLite4(arbiter.outputConfig)).setName("per")
+    io.axi4_io.readCmd << arbiter.io.output.readCmd
+    io.axi4_io.readRsp >> arbiter.io.output.readRsp
+    io.axi4_io.writeCmd << nc_dbus.writeCmd
+    io.axi4_io.writeData << nc_dbus.writeData
+    io.axi4_io.writeRsp >> nc_dbus.writeRsp
+    AxiLite4SpecRenamer(io.axi4_io)
   }
   val priv = core.framework.getService[PrivilegedPlugin]
   val priv_io = priv.io
