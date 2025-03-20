@@ -391,6 +391,9 @@ class PrivilegedPlugin(var p : PrivilegedConfig) extends Plugin with PrivilegedS
         val sd = False
         if(RVF) setup.isFpuEnabled setWhen(fs =/= 0)
         if(withFs) sd setWhen(fs === 3)
+
+        val tsr, tvm = p.withSupervisor generate RegInit(False)
+        val tw = p.withUser.mux(RegInit(False), False)
       }
       val mip = new Area{
         val meip = RegNext(io.int.machine.external) init(False)
@@ -414,6 +417,7 @@ class PrivilegedPlugin(var p : PrivilegedConfig) extends Plugin with PrivilegedS
       val tval    = csr.readWriteRam(CSR.MTVAL)
       val epc     = csr.readWriteRam(CSR.MEPC)
       val scratch = csr.readWriteRam(CSR.MSCRATCH)
+      csr.writeOverride(U(0, RVC.get.mux(1, 2) bits), CSR.MEPC, 0)
 
       csr.read(U(p.vendorId),CSR.MVENDORID) // MRO Vendor ID.
       csr.read(U(p.archId),  CSR.MARCHID) // MRO Architecture ID.
@@ -432,6 +436,7 @@ class PrivilegedPlugin(var p : PrivilegedConfig) extends Plugin with PrivilegedS
       csr.read     (CSR.MSTATUS, XLEN-1 -> mstatus.sd)
       csr.read     (CSR.MIP, 11 -> mip.meip, 7 -> mip.mtip, 3 -> mip.msip)
       csr.readWrite(CSR.MIE, 11 -> mie.meie, 7 -> mie.mtie, 3 -> mie.msie)
+      if(p.withSupervisor) csr.readWrite(CSR.MSTATUS, 22 -> mstatus.tsr, 21 -> mstatus.tw, 20 -> mstatus.tvm)
 
 
       if(withFs) csr.readWrite(CSR.MSTATUS, 13 -> mstatus.fs)
@@ -501,6 +506,7 @@ class PrivilegedPlugin(var p : PrivilegedConfig) extends Plugin with PrivilegedS
       val tval    = csr.readWriteRam(CSR.STVAL)
       val epc     = csr.readWriteRam(CSR.SEPC)
       val scratch = csr.readWriteRam(CSR.SSCRATCH)
+      csr.writeOverride(U(0, RVC.get.mux(1, 2) bits), CSR.SEPC, 0)
 
       csr.readWrite(CSR.SCAUSE, XLEN-1 -> cause.interrupt, 0 -> cause.code)
 
@@ -543,6 +549,7 @@ class PrivilegedPlugin(var p : PrivilegedConfig) extends Plugin with PrivilegedS
       val tval    = csr.readWriteRam(CSR.UTVAL)
       val epc     = csr.readWriteRam(CSR.UEPC)
       val scratch = csr.readWriteRam(CSR.USCRATCH)
+      csr.writeOverride(U(0, RVC.get.mux(1, 2) bits), CSR.UEPC, 0)
     }
 
     if(p.withRdTime) {
@@ -975,6 +982,7 @@ class PrivilegedPlugin(var p : PrivilegedConfig) extends Plugin with PrivilegedS
         val code      = Verilator.public(CombInit(fsm.trap.code     ))
         val interrupt = Verilator.public(CombInit(fsm.trap.interrupt))
         val tval      = Verilator.public(CombInit(reschedule.tval))
+        val tval_width  = TVAL_WIDTH.get
       }
     }
 
