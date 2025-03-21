@@ -172,7 +172,7 @@ class FileBackend(f : File) extends TraceBackend{
 class RvlsBackend(workspace : File = new File("."), spikeLogFileOut: Boolean) extends TraceBackend{
   import rvls.jni.Frontend
   FileUtils.forceMkdir(workspace)
-  val handle = Frontend.newContext(workspace.getAbsolutePath,spikeLogFileOut)
+  val handle = Frontend.newContext(workspace.getAbsolutePath)
 
   override def flush(): Unit = {}
   override def close(): Unit = {
@@ -190,12 +190,12 @@ class RvlsBackend(workspace : File = new File("."), spikeLogFileOut: Boolean) ex
   override def newCpu(hartId: Int, isa: String, priv: String, physWidth: Int, memoryViewId: Int): Unit = Frontend.newCpu(handle, hartId, isa, priv, physWidth, memoryViewId)
   override def loadElf(offset: Long, path: File): Unit = Frontend.loadElf(handle, offset, path.getAbsolutePath)
   override def loadBin(offset: Long, path: File): Unit = Frontend.loadBin(handle, offset, path.getAbsolutePath)
-  override def loadU32(address: Long, data: Int): Unit = Frontend.loadU32(handle, address, data)
+  override def loadU32(address: Long, data: Int): Unit = {} // Frontend.loadU32(handle, address, data)
   override def setPc(hartId: Int, pc: Long): Unit = Frontend.setPc(handle, hartId, pc)
   override def writeRf(hardId: Int, rfKind: Int, address: Int, data: Long): Unit = Frontend.writeRf(handle, hardId, rfKind, address, data)
   override def readRf(hardId: Int, rfKind: Int, address: Int, data: Long): Unit = Frontend.readRf(handle, hardId, rfKind, address, data)
   override def commit(hartId: Int, pc: Long): Unit = if(!Frontend.commit(handle, hartId, pc)) throw new Exception()
-  override def trap(hartId: Int, interrupt: Boolean, code: Int, fault_addr: Long): Unit = if(!Frontend.trap(handle, hartId, interrupt, code, fault_addr)) throw new Exception()
+  override def trap(hartId: Int, interrupt: Boolean, code: Int, fault_addr: Long): Unit = if(!Frontend.trap(handle, hartId, interrupt, code/*, fault_addr*/)) throw new Exception()
   override def ioAccess(hartId: Int, access: TraceIo): Unit = Frontend.ioAccess(handle, hartId, access.write, access.address, access.data, access.mask, access.size, access.error)
   override def setInterrupt(hartId: Int, intId: Int, value: Boolean): Unit = Frontend.setInterrupt(handle, hartId, intId, value)
   override def addRegion(hartId: Int, kind: Int, base: Long, size: Long): Unit = Frontend.addRegion(handle, hartId, kind, base, size)

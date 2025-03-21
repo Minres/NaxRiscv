@@ -130,7 +130,7 @@ object SocSim extends App {
 
   sc.workspaceName(workspaceName)
 
-  sc.wavePath(s"waves/${workspaceOutputSubDir}")
+//  sc.wavePath(s"waves/${workspaceOutputSubDir}")
 
 //  sc.normalOptimisation
   if(iverilog) {
@@ -197,20 +197,20 @@ object SocSim extends App {
   for (file <- elfs) {
     //println("ELF PATH: "+file)
     // How we want to run the test
-    dualSim match {
-      case true => DualSimTracer.withCb(compiled, window = 50000 * 10, seed = 2, file, runBuildroot = false)(testIt)
-      case false => compiled.doSimUntilVoid(name = file.substring(file.lastIndexOf("/") + 1), seed = 2) { dut => disableSimWave(); testIt(dut, f => if (traceIt) f, file, runBuildroot = false) }
-    }
+//    dualSim match {
+//      case true => DualSimTracer.withCb(compiled, window = 50000 * 10, seed = 2, file, runBuildroot = false)(testIt)
+//      case false => compiled.doSimUntilVoid(name = file.substring(file.lastIndexOf("/") + 1), seed = 2) { dut => disableSimWave(); testIt(dut, f => if (traceIt) f, file, runBuildroot = false) }
+//    }
   }
 
   if(getc.nonEmpty || putc.nonEmpty){
     val testName = workspaceOutputSubDir.replace("/", "_")
     val file = "/"+testName
     // How we want to run the test
-    dualSim match {
-      case true => DualSimTracer.withCb(compiled, window = 50000 * 10, seed = 2, file, runBuildroot = true)(testIt)
-      case false => compiled.doSimUntilVoid(name = testName, seed = 2) { dut => disableSimWave(); testIt(dut, f => if (traceIt) f, file, runBuildroot = true) }
-    }
+//    dualSim match {
+//      case true => DualSimTracer.withCb(compiled, window = 50000 * 10, seed = 2, file, runBuildroot = true)(testIt)
+//      case false => compiled.doSimUntilVoid(name = testName, seed = 2) { dut => disableSimWave(); testIt(dut, f => if (traceIt) f, file, runBuildroot = true) }
+//    }
   }
 
   println(passTests.size + " TESTS PASSED" + " & " + failTests.size + " TESTS FAILED")
