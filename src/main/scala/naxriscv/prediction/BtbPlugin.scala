@@ -59,8 +59,11 @@ class BtbPlugin(var entries : Int,
     val ENTRY = Stageable(BtbEntry())
     val HIT = Stageable(Bool())
     val mem = Mem.fill(entries)(BtbEntry()) //TODO bypass read durring write ?
-    if(GenerationFlags.simulation){
+    if(GenerationFlags.simulation)
       mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
+    if(GlobalData.get.config.device == Device.ASIC) {
+      mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
+      mem.technology = registerFile
     }
 
     val onLearn = new Area{

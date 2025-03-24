@@ -47,6 +47,11 @@ class RegFileAsync(addressWidth    : Int,
   val banks = for(bankId <- 0 until bankCount) yield new Area{
     val ram = Mem.fill((1 << addressWidth)/bankCount)(Bits(dataWidth bits))
     Verilator.public(ram)
+    if(GlobalData.get.config.device == Device.ASIC) {
+      ram.initBigInt(List.fill(ram.wordCount)(BigInt(0)))
+      ram.technology = registerFile
+    }
+
     def asyncRead = if(asyncReadBySyncReadRevertedClk) ram.readAsyncPortBySyncReadRevertedClk else ram.readAsyncPort
     val writePort = Seq.fill(writePortCount)(ram.writePort)
     val readPort = Seq.fill(readPortCount)(asyncRead)

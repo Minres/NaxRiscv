@@ -337,6 +337,8 @@ class FetchCachePlugin(var cacheSize : Int,
 
     val banks = for(id <- 0 until bankCount) yield new Area{
       val mem = Mem(Bits(bankWidth bits), bankWordCount)
+      if(GlobalData.get.config.device == Device.ASIC)
+        mem.forceMemToBlackboxTranslation = true
       val write = mem.writePort
       val read = new Area{
         val cmd = Flow(mem.addressType)
@@ -356,6 +358,8 @@ class FetchCachePlugin(var cacheSize : Int,
     }
     val ways = for(id <- 0 until wayCount) yield new Area {
       val mem = Mem.fill(linePerWay)(Tag())
+      if(GlobalData.get.config.device == Device.ASIC)
+        mem.technology = registerFile
       mem.write(waysWrite.address, waysWrite.tag, waysWrite.mask(id))
       val read = new Area{
         val cmd = Flow(mem.addressType)
@@ -368,6 +372,8 @@ class FetchCachePlugin(var cacheSize : Int,
     val PLRU = Stageable(Plru.State(wayCount))
     val plru = new Area {
       val ram = Mem.fill(linePerWay)(Plru.State(wayCount))
+      if(GlobalData.get.config.device == Device.ASIC)
+        ram.technology = registerFile
       val write = ram.writePort
     }
 

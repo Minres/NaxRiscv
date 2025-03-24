@@ -73,6 +73,10 @@ class GSharePlugin(var historyWidth : Int,
       if(GenerationFlags.simulation){
         counter.initBigInt(List.fill(counter.wordCount)(BigInt(0)))
       }
+      if(GlobalData.get.config.device == Device.ASIC) {
+        counter.initBigInt(List.fill(counter.wordCount)(BigInt(0)))
+        counter.technology = registerFile
+      }
     }
 
     val BYPASS = Stageable(cloneOf(mem.write))

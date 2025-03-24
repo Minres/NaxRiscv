@@ -797,6 +797,8 @@ class DataCache(val p : DataCacheParameters) extends Component {
 
   val banks = for(id <- 0 until bankCount) yield new Area{
     val mem = Mem(Bits(bankWidth bits), bankWordCount)
+    if(GlobalData.get.config.device == Device.ASIC)
+      mem.forceMemToBlackboxTranslation = true
     val write = mem.writePortWithMask(mem.getWidth/8)
     val read = new Area{
       val usedByWriteBack = False
@@ -825,6 +827,8 @@ class DataCache(val p : DataCacheParameters) extends Component {
 
   val ways = for(id <- 0 until wayCount) yield new Area {
     val mem = Mem.fill(linePerWay)(Tag())
+    if(GlobalData.get.config.device == Device.ASIC)
+      mem.technology = registerFile
     mem.write(waysWrite.address, waysWrite.tag, waysWrite.mask(id))
     val loadRead = new Area{
       val cmd = Flow(mem.addressType)
@@ -841,6 +845,8 @@ class DataCache(val p : DataCacheParameters) extends Component {
   val status = new Area{
     //Hazard between load/store is solved by the fact that only one can write trigger a refill/change the status at a given time
     val mem = Mem.fill(linePerWay)(Vec.fill(wayCount)(Status()))
+    if(GlobalData.get.config.device == Device.ASIC)
+      mem.technology = registerFile
     val write = mem.writePort.setIdle()
     val loadRead = new Area{
       val cmd = Flow(mem.addressType)

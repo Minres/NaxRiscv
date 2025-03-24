@@ -40,6 +40,8 @@ case class RamAsyncMwXor[T <: Data](payloadType : HardType[T], depth : Int, writ
   val rawBits = payloadType.getBitsWidth
   val rawType = HardType(Bits(rawBits bits))
   val ram = List.fill(writePorts)(Mem.fill(depth)(rawType))
+  if(GlobalData.get.config.device == Device.ASIC)
+    for(m <- ram) m.technology = registerFile
 
   val writes = for((port, storage) <- (io.writes, ram).zipped) yield new Area{
     val values = ram.filter(_ != storage).map(_.readAsync(port.address))
@@ -71,6 +73,8 @@ case class RamAsyncMwMux[T <: Data](payloadType : HardType[T],
   val rawBits = payloadType.getBitsWidth
   val rawType = HardType(Bits(rawBits bits))
   val ram = List.fill(writePorts)(Mem.fill(depth)(rawType))
+  if(GlobalData.get.config.device == Device.ASIC)
+    for(m <- ram) m.technology = registerFile
 
   val location = RamAsyncMwXor(
     payloadType = UInt(log2Up(writePorts) bits),
@@ -112,6 +116,8 @@ case class RamSyncMwXor[T <: Data](payloadType : HardType[T], depth : Int, write
   val rawBits = payloadType.getBitsWidth
   val rawType = HardType(Bits(rawBits bits))
   val ram = List.fill(writePorts)(Mem.fill(depth)(rawType))
+  if(GlobalData.get.config.device == Device.ASIC)
+    for(m <- ram) m.technology = registerFile
 
   val writes = for((port, storage) <- (io.writes, ram).zipped) yield new Area{
     val values = ram.filter(_ != storage).map(_.readAsync(port.address))
@@ -145,6 +151,8 @@ case class RamMr[T <: Data](payloadType : HardType[T], depth : Int, readPorts : 
     val ram = Mem.fill(depth)(payloadType)
     if(GenerationFlags.simulation)
       ram.initBigInt((0 until depth).map(_ => BigInt(0)))
+    if(GlobalData.get.config.device == Device.ASIC)
+      ram.technology = registerFile
     ram.write(
       enable = io.write.valid,
       address = io.write.address,

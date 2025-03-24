@@ -576,6 +576,11 @@ class LsuPlugin(var lqSize: Int,
         if(GenerationFlags.simulation){
           mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
         }
+        if(GlobalData.get.config.device == Device.ASIC) {
+          mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
+          mem.technology = registerFile
+        }
+
         val writePort = mem.writePort
         val writeLast = writePort.stage()
       }

@@ -99,6 +99,10 @@ class DecoderPredictionPlugin( var decodeAt: FrontendPlugin => Stage = _.pipelin
         if(GenerationFlags.simulation){
           stack.initBigInt(List.fill(stack.wordCount)(BigInt(0)))
         }
+        if(GlobalData.get.config.device == Device.ASIC) {
+          stack.initBigInt(List.fill(stack.wordCount)(BigInt(0)))
+          stack.technology = registerFile
+        }
       }
       val ptr = new Area{
         val push = Reg(UInt(log2Up(rasDepth) bits)) init(0)

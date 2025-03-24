@@ -85,6 +85,10 @@ class RobPlugin(var robSize : Int,
       if(GenerationFlags.simulation){
         hits.foreach(mem => mem.initBigInt(List.fill(mem.wordCount)(BigInt(0))))
       }
+      if(GlobalData.get.config.device == Device.ASIC) {
+        hits.foreach(mem => mem.initBigInt(List.fill(mem.wordCount)(BigInt(0))))
+        hits.foreach(mem => mem.technology = registerFile)
+      }
 
       val targetWrite = target.writePort
       targetWrite.valid := frontend.pipeline.allocated.isFireing
