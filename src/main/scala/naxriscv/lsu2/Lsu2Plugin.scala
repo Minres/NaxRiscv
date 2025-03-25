@@ -522,8 +522,10 @@ class Lsu2Plugin(var lqSize: Int,
         if(GenerationFlags.simulation){
           mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
         }
-        if(GlobalData.get.config.device == Device.ASIC)
+        if(GlobalData.get.config.device == Device.ASIC) {
+          mem.initBigInt(List.fill(mem.wordCount)(BigInt(0)))
           mem.technology = registerFile
+        }
         val hazard = False
         def addHazard(read : Flow[UInt]) = hazard setWhen(read.valid && read.payload === write.address)
 

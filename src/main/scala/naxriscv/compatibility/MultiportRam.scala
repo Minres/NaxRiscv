@@ -151,8 +151,10 @@ case class RamMr[T <: Data](payloadType : HardType[T], depth : Int, readPorts : 
     val ram = Mem.fill(depth)(payloadType)
     if(GenerationFlags.simulation)
       ram.initBigInt((0 until depth).map(_ => BigInt(0)))
-    if(GlobalData.get.config.device == Device.ASIC)
+    if(GlobalData.get.config.device == Device.ASIC) {
+      ram.initBigInt((0 until depth).map(_ => BigInt(0)))
       ram.technology = registerFile
+    }
     ram.write(
       enable = io.write.valid,
       address = io.write.address,
