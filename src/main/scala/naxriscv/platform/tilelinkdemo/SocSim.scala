@@ -95,21 +95,21 @@ object SocSim extends App {
     opt[Unit]("asic") action { (v, c) => asic = true }
     opt[Unit]("iverilog") action { (v, c) => iverilog = true }
     opt[Int]("nax-count") action { (v, c) => naxCount = v }
-    opt[Seq[String]]("load-bin") unbounded() action { (v, c) => bins += (lang.Long.parseLong(v(1), 16) -> v(0)) }
-    opt[String]("load-elf") unbounded() action { (v, c) => elfs += v }
-    opt[Seq[String]]("load-u32") unbounded() action { (v, c) => u32 += ( lang.Long.parseLong(v(1), 16) -> Integer.parseInt(v(0), 10))}
+    opt[Seq[String]]("load-bin").unbounded() action { (v, c) => bins += (lang.Long.parseLong(v(1), 16) -> v(0)) }
+    opt[String]("load-elf").unbounded() action { (v, c) => elfs += v }
+    opt[Seq[String]]("load-u32").unbounded() action { (v, c) => u32 += ( lang.Long.parseLong(v(1), 16) -> Integer.parseInt(v(0), 10))}
     opt[String]("start-symbol") action { (v, c) => startSymbol = v }
     opt[String]("pass-symbol") action { (v, c) => passSymbol = v }
     opt[String]("fail-symbol") action { (v, c) => failSymbol = v }
     opt[Int]("start-add") action { (v, c) => startAdd = v }
-    opt[String]("getc") unbounded() action { (v, c) => getc += v }
-    opt[String]("putc") unbounded() action { (v, c) => putc += v }
+    opt[String]("getc").unbounded() action { (v, c) => getc += v }
+    opt[String]("putc").unbounded() action { (v, c) => putc += v }
     opt[Unit]("success") action { (v, c) => doSuccess = true }
-    opt[String]("workspace-path") unbounded() action { (v, c) => workspacePath = v }
-    opt[String]("workspace-name") unbounded() action { (v, c) => workspaceName = v }
-    opt[String]("workspace-output-dir") unbounded() action { (v, c) => workspaceOutputDir = v }
-    opt[String]("workspace-output-sub-dir") unbounded() action { (v, c) => workspaceOutputSubDir = v }
-  }.parse(args, Unit).nonEmpty)
+    opt[String]("workspace-path").unbounded() action { (v, c) => workspacePath = v }
+    opt[String]("workspace-name").unbounded() action { (v, c) => workspaceName = v }
+    opt[String]("workspace-output-dir").unbounded() action { (v, c) => workspaceOutputDir = v }
+    opt[String]("workspace-output-sub-dir").unbounded() action { (v, c) => workspaceOutputSubDir = v }
+  }.parse(args, ()).nonEmpty)
   // Replace commas (",") with spaces (" ")
   if(getc.nonEmpty){
     getc = getc.map(_.replaceAll(",", " "))
@@ -130,7 +130,7 @@ object SocSim extends App {
 
   sc.workspaceName(workspaceName)
 
-//  sc.wavePath(s"waves/${workspaceOutputSubDir}")
+  sc.waveFilePrefix(s"waves/${workspaceOutputSubDir}")
 
 //  sc.normalOptimisation
   if(iverilog) {

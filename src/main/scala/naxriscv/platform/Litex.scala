@@ -22,6 +22,8 @@ import spinal.lib.misc.plic.{AxiLite4Plic, WishbonePlic}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.tools.nsc.interpreter.shell.ReplReporterImpl
+import scala.tools.nsc.{ConsoleWriter, NewLinePrintWriter}
 
 
 class NaxRiscvLitex(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UInt => Bool) extends Component{
@@ -41,7 +43,7 @@ class NaxRiscvLitex(plugins : ArrayBuffer[Plugin], xlen : Int, toPeripheral : UI
   )
 
   val cpu = new NaxRiscv(
-    plugins
+    plugins.toSeq
   )
 
   val ram = new Area{
@@ -129,8 +131,8 @@ object LitexGen extends App{
     help("help").text("prints this usage text")
     opt[String]("netlist-directory") action { (v, c) => netlistDirectory = v }
     opt[String]("netlist-name") action { (v, c) => netlistName = v }
-    opt[String]("scala-file") unbounded() action  { (v, c) => files += v }
-    opt[String]("scala-args") unbounded() action  { (v, c) =>
+    opt[String]("scala-file").unbounded() action  { (v, c) => files += v }
+    opt[String]("scala-args").unbounded() action  { (v, c) =>
       val elements = v.split(",").map(_.split("="))
       for(e <- elements) scalaArgs += s"""args("${e(0)}") = ${e(1)}"""
     }
@@ -139,14 +141,14 @@ object LitexGen extends App{
     opt[Unit]("with-jtag-tap") action  { (v, c) => jtagTap = true }
     opt[Unit]("with-jtag-instruction") action  { (v, c) => jtagInstruction = true }
     opt[Unit]("with-debug") action  { (v, c) => debug = true }
-    opt[Seq[String]]("memory-region") unbounded() action  { (v, c) =>
+    opt[Seq[String]]("memory-region").unbounded() action  { (v, c) =>
       assert(v.length == 4, "--memory-region need 4 parameters")
       val r = new LitexMemoryRegion(SizeMapping(BigInt(v(0)), BigInt(v(1))), v(2), v(3))
       memoryRegions += r
       assert(!(r.onMemory && !r.isCachable), s"Region $r isn't supported by NaxRiscv, data cache will always cache memory")
       assert(!(r.onMemory &&  r.isIo ), s"Region $r isn't supported by NaxRiscv, IO have to be on peripheral bus")
     }
-  }.parse(args, Unit).nonEmpty)
+  }.parse(args, ()).nonEmpty)
 
   val spinalConfig = SpinalConfig(inlineRom = true, targetDirectory = netlistDirectory)
   spinalConfig.addTransformationPhase(new MemReadDuringWritePatcherPhase)
@@ -194,9 +196,8 @@ object ScalaInterpreter extends App{
     val settings = new Settings
     settings.usejavacp.value = true
     settings.deprecation.value = true
-
     val aaa = 32
-    val eval = new IMain(settings)
+    val eval = new IMain(settings, new ReplReporterImpl(settings))
     for(bind <- binds) eval.bind(bind._1, bind._2, bind._3)
     val evaluated = eval.interpret(clazz)
     val res = eval.valueOfTerm("res0").get.asInstanceOf[T]

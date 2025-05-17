@@ -32,8 +32,9 @@ import spinal.lib.misc.plic.WishbonePlic
 
 import scala.collection.mutable.ArrayBuffer
 import scala.sys.exit
-
 import scopt.OParser
+
+import scala.language.postfixOps
 
 class NaxRiscv(val plugins : Seq[Plugin]) extends Component{
   val database = new DataBase
@@ -538,7 +539,7 @@ object Gen extends App{
 
     spinalConfig.includeSimulation
 
-    val report = spinalConfig.generateVerilog(new NaxRiscv(plugins))
+    val report = spinalConfig.generateVerilog(new NaxRiscv(plugins.toSeq))
     val doc = report.toplevel.framework.getService[DocPlugin]
     doc.genC()
 
@@ -556,7 +557,7 @@ object Gen extends App{
     spinalConfig.addStandardMemBlackboxing(blackboxByteEnables)
     spinalConfig.addTransformationPhase(new EnforceSyncRamPhase)
 
-    spinalConfig.generateVerilog(wrapper(new NaxRiscv(plugins).setDefinitionName("NaxRiscvSynt")))
+    spinalConfig.generateVerilog(wrapper(new NaxRiscv(plugins.toSeq).setDefinitionName("NaxRiscvSynt")))
   }
 }
 
@@ -630,7 +631,7 @@ object Gen64 extends App{
 
     spinalConfig.includeSimulation
 
-    val report = spinalConfig.generateVerilog(new NaxRiscv(plugins))
+    val report = spinalConfig.generateVerilog(new NaxRiscv(plugins.toSeq))
     val doc = report.toplevel.framework.getService[DocPlugin]
     doc.genC()
 
@@ -648,7 +649,7 @@ object Gen64 extends App{
     spinalConfig.addStandardMemBlackboxing(blackboxByteEnables)
     spinalConfig.addTransformationPhase(new EnforceSyncRamPhase)
 
-    spinalConfig.generateVerilog(wrapper(new NaxRiscv(plugins).setDefinitionName("NaxRiscvSynt")))
+    spinalConfig.generateVerilog(wrapper(new NaxRiscv(plugins.toSeq).setDefinitionName("NaxRiscvSynt")))
   }
 }
 

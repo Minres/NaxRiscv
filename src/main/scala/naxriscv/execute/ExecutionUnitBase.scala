@@ -217,7 +217,7 @@ class ExecutionUnitBase(val euId : String,
         withReady = staticLatenciesStorage.isEmpty,
         physRdType = decoder.PHYS_RD,
         regfileRdType = decoder.REGFILE_RD,
-        contextKeys = contextKeys
+        contextKeys = contextKeys.toSeq
       )
       stage.valid := port.valid
       stage(ROB.ID) := port.robId

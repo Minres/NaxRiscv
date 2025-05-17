@@ -92,7 +92,7 @@ object SimdAddNaxGen extends App{
   spinalConfig.addTransformationPhase(new MemReadDuringWriteHazardPhase)
   spinalConfig.addTransformationPhase(new MultiPortWritesSymplifier)
 
-  val report = spinalConfig.generateVerilog(new NaxRiscv(plugins))
+  val report = spinalConfig.generateVerilog(new NaxRiscv(plugins.toSeq))
   report.toplevel.framework.getService[DocPlugin].genC()
 }
 

@@ -150,7 +150,7 @@ class MulPlugin(val euId : String,
         untilOffset = if(stepId == 0) untilOffsetS0 else Integer.MAX_VALUE
       )
       // Generate the hardware corresponding to every addersSpec
-      val adders = addersSpec.map(_.craft(sourceToSignal.mapValues(stage(_)))).map(insert(_))
+      val adders = addersSpec.map(_.craft(sourceToSignal.view.mapValues(stage(_)).toMap)).map(insert(_))
 
       // Setup the iteration variables for the next step
       sourcesSpec = addersSpec.map(_.toSource()).toList

@@ -238,7 +238,7 @@ class RegFilePlugin(var spec : RegfileSpec,
     )
   ).port
   override def newBypass() : RegFileBypass = bypasses.addRet(RegFileBypass(addressWidth, dataWidth))
-  override def getWrites() = writes.map(_.port)
+  override def getWrites() = writes.toSeq.map(_.port).toSeq
 
   override def retain() = lock.retain()
   override def release() = lock.release()
@@ -297,7 +297,7 @@ class RegFilePlugin(var spec : RegfileSpec,
         addressWidth = addressWidth,
         dataWidth = dataWidth,
         bankCount = bankCount,
-        readsParameter = reads.map(e => RegFileReadParameter(withReady = e.withReady, e.forceNoBypass)),
+        readsParameter = reads.toSeq.map(e => RegFileReadParameter(withReady = e.withReady, e.forceNoBypass)),
         writesParameter = writeMerges.map(e => RegFileWriteParameter(withReady = false)).toList,
         headZero = spec.x0AlwaysZero,
         preferedWritePortForInit = writeGroups.zipWithIndex.find(_._1._2.exists(_.port.getName().contains(preferedWritePortForInit))).get._2,
@@ -308,7 +308,7 @@ class RegFilePlugin(var spec : RegfileSpec,
       val latches = latchBased generate new RegFileLatch(
         addressWidth = addressWidth,
         dataWidth = dataWidth,
-        readsParameter = reads.map(e => RegFileReadParameter(withReady = e.withReady, e.forceNoBypass)),
+        readsParameter = reads.toSeq.map(e => RegFileReadParameter(withReady = e.withReady, e.forceNoBypass)),
         writesParameter = writeMerges.map(e => RegFileWriteParameter(withReady = false)).toList,
         headZero = spec.x0AlwaysZero,
         fakeRatio = fakeRatio

@@ -22,6 +22,7 @@ import spinal.lib.bus.tilelink.{M2sSupport, SizeRange}
 import spinal.lib.misc.Plru
 
 import scala.collection.mutable.ArrayBuffer
+import scala.language.postfixOps
 
 case class FetchL1Cmd(physicalWidth : Int) extends Bundle{
   val address = UInt(physicalWidth bits)
@@ -424,7 +425,8 @@ class FetchCachePlugin(var cacheSize : Int,
       val wayToAllocate = Reg(UInt(log2Up(wayCount) bits))
 
       import spinal.core.sim._
-      val pushCounter = Reg(UInt(32 bits)) init (0) simPublic()
+      val pushCounter = Reg(UInt(32 bits)) init(0)
+      pushCounter.simPublic()
 
       when(!valid){
         when(start.valid){

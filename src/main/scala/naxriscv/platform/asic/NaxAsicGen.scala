@@ -28,7 +28,7 @@ object NaxAsicGen extends App{
     opt[Unit]("io-ff") action { (v, c) => withIoFf = true }
     opt[Unit]("no-rf-latch-ram") action { (v, c) => withRfLatchRam = false }
     opt[Unit]("bb-comb-ram") action { (v, c) => blackBoxCombRam = true }
-  }.parse(args, Unit).nonEmpty)
+  }.parse(args, ()).nonEmpty)
 
 
   LutInputs.set(4)
@@ -94,7 +94,7 @@ object NaxAsicGen extends App{
 
   if(blackBoxCombRam) spinalConfig.memBlackBoxers += new CombRamBlackboxer()
 
-  def gen = new NaxRiscv(plugins).setDefinitionName("nax")
+  def gen = new NaxRiscv(plugins.toSeq).setDefinitionName("nax")
   spinalConfig.generateVerilog(if(withIoFf) Rtl.ffIo(gen) else gen)
 
 //  spinalConfig.generateVerilog(new StreamFifo(UInt(4 bits), 256).setDefinitionName("nax"))

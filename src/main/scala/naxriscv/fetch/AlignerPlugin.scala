@@ -23,6 +23,7 @@ import spinal.lib.pipeline.Stageable
 import naxriscv.prediction.Prediction._
 
 import scala.collection.mutable
+import scala.language.postfixOps
 
 
 
@@ -111,7 +112,7 @@ class AlignerPlugin(var decodeCount : Int,
     }
 
     val slices = new Area {
-      val data = (WORD ## buffer.data).subdivideIn(SLICE_WIDTH bits)
+      val data = (WORD.asBits ## buffer.data).subdivideIn(SLICE_WIDTH bits)
       var carry = (isInputValid ? input(MASK_FRONT) | B(0)) ## buffer.mask //Which slice have valid data
       var remains = CombInit(carry)
       var used = B(0, SLICE_COUNT*2 bits)

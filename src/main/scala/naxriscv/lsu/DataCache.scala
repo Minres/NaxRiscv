@@ -19,6 +19,7 @@ import spinal.lib.pipeline.{Pipeline, Stage, Stageable, StageableOffsetNone}
 import spinal.lib.sim.SimData.dataToSimData
 
 import scala.collection.mutable.ArrayBuffer
+import scala.language.postfixOps
 
 //allows to lock a physical address into unique state
 case class LockPort() extends Bundle with IMasterSlave {
@@ -960,7 +961,7 @@ class DataCache(val p : DataCacheParameters) extends Component {
     }).setIdle()
 
     import spinal.core.sim._
-    val pushCounter = Reg(UInt(32 bits)) init(0) simPublic()
+    val pushCounter = Reg(UInt(32 bits)).init(0).simPublic()
     when(push.valid) {pushCounter := pushCounter + 1}
 
     for (slot <- slots) when(push.valid) {

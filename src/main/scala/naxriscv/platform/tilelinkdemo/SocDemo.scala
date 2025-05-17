@@ -34,7 +34,7 @@ val naxes = for(hartId <- 0 until cpuCount) yield
       withRvc = withRvc,
       withFloat = withFloat,
       withDouble = withDouble
-    )
+    ).toSeq
   )
 
   // As NaxRiscv may emit memory request to some unmapped memory space, we need to catch those with TransactionFilter

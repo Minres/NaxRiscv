@@ -5,7 +5,7 @@
 package naxriscv
 
 import naxriscv.Fetch.INSTRUCTION_SLICE_COUNT
-import naxriscv.Global.{PC}
+import naxriscv.Global.PC
 import naxriscv.utilities.Plugin
 import spinal.core._
 import spinal.lib.pipeline.Stageable
@@ -13,6 +13,7 @@ import naxriscv.utilities._
 import spinal.core.fiber.Handle
 
 import scala.collection.mutable
+import scala.language.postfixOps
 
 
 object ROB extends AreaObject{

@@ -198,7 +198,7 @@ object AdderAggregator {
         // Build lanes
         while (lanes.size < lanesMax && srcs.nonEmpty && srcs(0).offsetTmp < logicOffsetNext) {
           val from = ArrayBuffer[LaneSource]()
-          val lane = Lane(from)
+          val lane = Lane(from.toSeq)
           lanes += lane
           var ptr = adderOffset
           var continue = false
@@ -229,13 +229,13 @@ object AdderAggregator {
         val adder = Adder(
           offset = adderOffset,
           width = adderOffsetNext - adderOffset,
-          lanes = lanes
+          lanes = lanes.toSeq
         )
         adders += adder
       }
     }
 
-    adders
+    adders.toSeq
   }
 
   //Here is an example of usage.

@@ -83,7 +83,7 @@ class DecoderPlugin(val xlen : Int) extends Plugin with DecoderService with Lock
     case RS3 => 2
   }
 
-  override def euGroups = logic.euGroups
+  override def euGroups = logic.euGroups.toSeq
   override def READ_RS(id: Int) : Stageable[Bool] = setup.keys.READ_RS(id)
   override def ARCH_RS(id: Int) : Stageable[UInt] = setup.keys.ARCH_RS(id)
   override def PHYS_RS(id: Int) : Stageable[UInt] = setup.keys.PHYS_RS(id)
@@ -167,7 +167,7 @@ class DecoderPlugin(val xlen : Int) extends Plugin with DecoderService with Lock
       euGroups += EuGroup(
         eus.toList,
         Stageable(Bool()).setName(eus.map(_.euName()).mkString("_") + "_SEL"),
-        microOps = microOps
+        microOps = microOps.toSeq
       )
     }
 

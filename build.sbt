@@ -8,10 +8,10 @@ lazy val root = (project in file(".")).
   settings(
     inThisBuild(List(
       organization := "com.github.spinalhdl",
-      scalaVersion := "2.12.18",
+      scalaVersion := "2.13.14",
       version      := "2.0.0"
     )),
-    scalacOptions += s"-Xplugin:${new File(baseDirectory.value + s"/ext/SpinalHDL/idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-$spinalVersion.jar")}",
+    scalacOptions += s"-Xplugin:${new File(baseDirectory.value + s"/ext/SpinalHDL/idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-$spinalVersion.jar")}",
     scalacOptions += s"-Xplugin-require:idsl-plugin",
     scalacOptions += "-language:reflectiveCalls",
     libraryDependencies ++= Seq(

@@ -25,7 +25,7 @@ class GSharePlugin(var historyWidth : Int,
 
   override def useHistoryAt = readAt
   override def historyWidthUsed = historyWidth
-  override def getPredictionAt(stageId: Int) = getService[FetchPlugin].getStage(stageId)(setup.keys.GSHARE_COUNTER).map(_.msb)
+  override def getPredictionAt(stageId: Int) = getService[FetchPlugin].getStage(stageId)(setup.keys.GSHARE_COUNTER).map(_.msb).toIndexedSeq
 
   val setup = create early new Area{
     val fetch = getService[FetchPlugin]

@@ -818,7 +818,7 @@ class LsuPlugin(var lqSize: Int,
             when(isFireing) {
               mem.sqAlloc.write(
                 address = LQ_ID,
-                data = U(SQ_ID_CARRY ## allocStage(SQ_ID, slotId))
+                data = U(SQ_ID_CARRY.asBits ## allocStage(SQ_ID, slotId))
               )
             }
             alloc \= alloc + 1
@@ -1316,7 +1316,7 @@ class LsuPlugin(var lqSize: Int,
             when(isFireing) {
               mem.lqAlloc.write(
                 address = SQ_ID,
-                data = U(LQ_ID_CARRY ## allocStage(LQ_ID, slotId))
+                data = U(LQ_ID_CARRY.asBits ## allocStage(LQ_ID, slotId))
               )
               mem.dataRfAddress.write(
                 address = SQ_ID,

@@ -126,7 +126,7 @@ class TilelinkNaxRiscvFiber(val plugins : Seq[Plugin]) extends Area with RiscvHa
     }
 
 
-    val core = new NaxRiscv(l)
+    val core = new NaxRiscv(l.toSeq)
     core.plugins.foreach{
       case p : FetchCachePlugin => iBus.bus << p.mem.toTilelink()
       case p : DataCachePlugin =>  dBus.bus << p.mem.toTilelink()

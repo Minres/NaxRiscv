@@ -19,6 +19,7 @@ import spinal.lib.pipeline.{Pipeline, Stageable}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.language.postfixOps
 
 object DispatchPlugin extends AreaObject{
   val FENCE_YOUNGER = Stageable(Bool())
@@ -36,7 +37,7 @@ class DispatchPlugin(var slotCount : Int = 0,
   import DispatchPlugin._
   val robWaits = ArrayBuffer[RobWait]()
   override def newRobDependency() = robWaits.addRet(RobWait())
-  override def wakeRegFile = logic.pop.flatMap(_.wake.map(_.bypassed))
+  override def wakeRegFile = logic.pop.toSeq.flatMap(_.wake.map(_.bypassed))
   override def initCycles = if(logic.globalStaticLatencies.latencies.isEmpty) 0 else logic.globalStaticLatencies.latencies.max + 4 //For sanity in some test configs withs absurd static latencies
 
   val fenceYoungerSpec, fenceOlderSpec = mutable.LinkedHashSet[MicroOp]()
@@ -247,7 +248,7 @@ class DispatchPlugin(var slotCount : Int = 0,
       def filter[T](v : Seq[T]) = (for(i <- 0 until slotCount; if i % mapping.eventFactor == mapping.eventOffset) yield v(i))
       def readContext[T <: Data](key : Stageable[T], latency : Int)(extract : Context => T): Unit ={
         val factor = readContextLayer0Factor
-        val inputs = filter(queue.io.contexts).map(extract(_).asBits)
+        val inputs = filter(queue.io.contexts.toSeq).map(extract(_).asBits)
         val oh = port.event
         latency match {
           case 0 => entryStage(key) := MuxOH.or(oh, inputs).as(key)

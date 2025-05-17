@@ -16,6 +16,7 @@ import naxriscv.Global._
 import naxriscv.frontend.FrontendPlugin
 
 import scala.collection.mutable.ArrayBuffer
+import scala.language.postfixOps
 
 object FpuWriteback extends AreaObject {
   val INT_FLAGS = Stageable(new FpuFlags)
@@ -102,8 +103,8 @@ class FpuWriteback() extends Plugin  with WakeRobService with WakeRegFileService
     }
     for(e <- floatList) decoder.addMicroOpDecoding(e, DecodeList(FLOAT_FLAGS_ENABLE -> True))
     for(e <- intList) decoder.addMicroOpDecoding(e, DecodeList(INT_FLAGS_ENABLE -> True))
-    (floatList++intList++lsuList--List(Rvfd.FMV_X_D, Rvfd.FMV_X_W, Rvfd.FSW, Rvfd.FSD)).foreach{ e =>
-      decoder.addMicroOpDecoding(e , DecodeList(FP_DIRTY -> True))
+    (floatList++intList ++ lsuList).subtractAll(List(Rvfd.FMV_X_D, Rvfd.FMV_X_W, Rvfd.FSW, Rvfd.FSD)).foreach{ e =>
+        decoder.addMicroOpDecoding(e , DecodeList(FP_DIRTY -> True))
     }
 
     rob.retain()
