@@ -74,10 +74,6 @@ clone_submodule() {
     #echo "RVLS successfully checked out to $RVLS_VERSION."
 
     # Apply patches
-    apply_patch "$RVLS_DIR" "$ROOT_DIR/rvls.diff" "rvls-include-elfio"
-    apply_patch "$RVLS_DIR" "$ROOT_DIR/rvls.patch" "rvls-all-modif"
-    apply_patch "$ROOT_DIR/ext/SpinalHDL/lib/src/main/scala/spinal/lib/misc/test" "$ROOT_DIR/Patch_DualSimTracer_toSupportSeveralELF_addRunningLinuxFlag.patch" "DualSim"
-    apply_patch "$ROOT_DIR/ext/SpinalHDL/core/src/main/scala/spinal/core/sim" "$ROOT_DIR/adding_wavePath_simConfig.patch" "simBootstraps"
 }
 
 # Main script execution
